@@ -8,7 +8,10 @@ use crate::{
     picker::{Item, Kind, Picker, POPUP_FRAMES},
 };
 
-use super::theme::{bold, ease, fg, flow, lerp, spinner, CODE_BG, DIM, FG, HEAD, PANEL};
+use super::{
+    anim,
+    theme::{bold, ease, fg, flow, flowing, lerp, spinner, CODE_BG, DIM, FG, HEAD, PANEL},
+};
 
 pub fn draw(f: &mut Frame, app: &App) {
     let Some(picker) = &app.picker else { return };
@@ -17,15 +20,21 @@ pub fn draw(f: &mut Frame, app: &App) {
     let area = centered(f.area(), 76, height);
 
     let title = match picker.kind {
-        Kind::Provider => format!(" Provider ({}) ", picker.items.len()),
-        Kind::Model => format!(" Model · {} ({}) ", app.cfg.current().name, picker.items.len()),
+        Kind::Provider => format!("Provider ({})", picker.items.len()),
+        Kind::Model => format!("Model · {} ({})", app.cfg.current().name, picker.items.len()),
     };
+    // Judul ala Crush: teks gradien lalu ╱╱╱╱.
+    let mut head = vec![Span::raw(" ")];
+    head.extend(flowing(&title, app.tick));
+    head.push(Span::raw(" "));
+    head.extend(anim::slashes(8, app.tick));
+    head.push(Span::raw(" "));
     let block = Block::bordered()
         .border_type(BorderType::Rounded)
         .border_style(fg(flow(0.3, app.tick)))
         .style(Style::new().fg(FG).bg(PANEL))
         .padding(Padding::horizontal(1))
-        .title(Span::styled(title, bold(HEAD)))
+        .title(Line::from(head))
         .title_bottom(Span::styled(" ↑↓ pilih · Enter ok · Esc tutup ", fg(DIM)));
     let inner = block.inner(area);
     f.render_widget(Clear, area);

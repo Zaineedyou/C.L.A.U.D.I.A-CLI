@@ -85,7 +85,42 @@ pub fn stars(f: &mut Frame, area: Rect, tick: usize, alpha: f32) {
     }
 }
 
+const GLYPHS: &[char] = &[
+    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f', 'A', 'B', 'C', 'D', 'E', 'F', '~', '!',
+    '@', '#', '$', '%', '^', '&', '*', '(', ')', '+', '=', '_',
+];
+
+fn hash(a: u32, b: u32) -> u32 {
+    let mut h = a.wrapping_mul(374_761_393).wrapping_add(b.wrapping_mul(668_265_263));
+    h = (h ^ (h >> 13)).wrapping_mul(1_274_126_177);
+    h ^ (h >> 16)
+}
+
+/// Deret huruf acak ala Crush: tiap sel ganti glyph sepuluh kali per detik, warnanya gradien yang mengalir.
+pub fn cycle(tick: usize, width: usize) -> Vec<Span<'static>> {
+    (0..width)
+        .map(|i| {
+            let glyph = GLYPHS[hash(i as u32, (tick / 2) as u32) as usize % GLYPHS.len()];
+            let pos = i as f32 / width.max(1) as f32;
+            Span::styled(glyph.to_string(), fg(flow(pos, tick * 2)))
+        })
+        .collect()
+}
+
+/// Titik-titik yang bertambah tiap 400 ms (lebar tetap, jadi teks di sebelahnya tidak goyang).
+pub fn dots(tick: usize) -> &'static str {
+    ["   ", ".  ", ".. ", "..."][tick / 8 % 4]
+}
+
+/// Garis miring ╱╱╱ ala header Crush, gradiennya mengalir.
+pub fn slashes(width: usize, tick: usize) -> Vec<Span<'static>> {
+    (0..width)
+        .map(|i| Span::styled("╱", fg(mix(BG, flow(i as f32 / width.max(1) as f32, tick), 0.55))))
+        .collect()
+}
+
 /// Scanner ala Knight Rider: kepala terang dengan ekor memudar, bolak-balik.
+#[allow(dead_code)]
 pub fn scanner(tick: usize, width: usize) -> Vec<Span<'static>> {
     let cycle = 2 * (width - 1);
     let p = tick / 2 % cycle;

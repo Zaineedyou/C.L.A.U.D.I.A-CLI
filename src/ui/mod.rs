@@ -105,10 +105,11 @@ fn status(f: &mut Frame, area: Rect, app: &App) {
         (Some(Notice::Error(e)), ..) => vec![Span::styled(format!("✖ {e}"), fg(ERR))],
         (Some(Notice::Info(i)), ..) => vec![Span::styled(format!("✦ {i}"), fg(HEAD))],
         (None, true, _) => {
-            let mut spans = anim::scanner(app.tick, 8);
-            spans.push(Span::raw("  "));
-            spans.extend(shimmer(&format!("{} lagi nulis…", app.cfg.name), app.tick, DIM));
-            spans.push(Span::styled("  esc batal", fg(DIM)));
+            let mut spans = anim::cycle(app.tick, 12);
+            spans.push(Span::raw(" "));
+            spans.extend(shimmer(&format!("{} lagi nulis", app.cfg.name), app.tick, DIM));
+            spans.push(Span::styled(anim::dots(app.tick), fg(DIM)));
+            spans.push(Span::styled(" esc batal", fg(DIM)));
             spans
         }
         (None, false, scroll) if scroll > 0 => vec![Span::styled("↓ End: balik ke bawah", fg(DIM))],

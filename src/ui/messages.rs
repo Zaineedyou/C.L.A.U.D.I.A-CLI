@@ -9,8 +9,8 @@ use crate::{
 };
 
 use super::{
-    markdown,
-    theme::{flow, fg, mix, pulse, shimmer, spinner, ACCENT_B, AI, DIM, PANEL, USER},
+    anim, markdown,
+    theme::{fg, mix, pulse, shimmer, ACCENT_B, AI, DIM, PANEL, USER},
 };
 
 /// Seluruh percakapan sebagai baris yang sudah di-wrap untuk lebar `width`.
@@ -53,8 +53,11 @@ fn assistant(app: &App, msg: &Message, last: bool, width: usize, out: &mut Vec<L
     let streaming = app.streaming && last;
 
     if streaming && msg.content.is_empty() {
-        let mut spans = vec![indent, Span::styled(format!("{} ", spinner(app.tick)), fg(flow(0.0, app.tick)))];
-        spans.extend(shimmer(&format!("{} lagi mikir…", app.cfg.name), app.tick, DIM));
+        let mut spans = vec![indent];
+        spans.extend(anim::cycle(app.tick, 10));
+        spans.push(Span::raw(" "));
+        spans.extend(shimmer(&format!("{} lagi mikir", app.cfg.name), app.tick, DIM));
+        spans.push(Span::styled(anim::dots(app.tick), fg(DIM)));
         out.push(Line::from(spans));
         return;
     }

@@ -19,11 +19,18 @@ pub fn draw(f: &mut Frame, area: Rect, app: &App) {
     let p = app.cfg.current();
     let dot = fg(if app.cfg.is_ready(p) { OK } else { ERR });
     let tokens = app.messages.iter().map(|m| m.content.chars().count()).sum::<usize>() / 4;
-    let heading = |text: &str| Line::from(Span::styled(text.to_string(), bold(FG)));
+    let w = inner.width as usize;
+    // Judul bagian ala Crush: "Sesi ╱╱╱╱╱╱╱╱".
+    let heading = |text: &str| {
+        let mut spans = vec![Span::styled(text.to_string(), bold(FG)), Span::raw(" ")];
+        spans.extend(anim::slashes(w.saturating_sub(text.chars().count() + 1), app.tick));
+        Line::from(spans)
+    };
     let dim = |text: String| Line::from(Span::styled(text, fg(DIM)));
 
     let mut lines = vec![
         Line::from(flowing("C.L.A.U.D.I.A", app.tick)),
+        Line::from(anim::slashes(w, app.tick)),
         dim(format!("CLI v{}", env!("CARGO_PKG_VERSION"))),
         Line::default(),
         heading("Sesi"),
