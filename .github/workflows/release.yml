@@ -1,0 +1,20 @@
+name: release
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build --release
+      - run: |
+          cd target/release
+          tar czf claudia-${{ github.ref_name }}-linux-arm64.tar.gz claudia
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: target/release/claudia-*.tar.gz
+          
