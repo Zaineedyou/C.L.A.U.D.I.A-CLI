@@ -13,7 +13,7 @@ GEMINI_API_KEY, VENICE_API_KEY, HF_TOKEN, ...); key dari environment tidak perna
 Perintah: ketik `/` buat dropdown (↑↓ pilih, Tab lengkapi, Enter jalankan, Esc tutup). Ctrl+P membuka palet
 perintah yang sama. /connect · /provider · /model · /system · /new · /close · /clear · /tab <n> · /key <kunci> · /disconnect · /help · /exit
 Tombol: Ctrl+O model · Enter kirim · Esc batal · Ctrl+L bersih · Ctrl+C keluar
-Tab sesi: Ctrl+N sesi baru · Ctrl+W tutup · Alt+panah / Alt+1..9 pindah tab
+Tab sesi: klik/sentuh tab atau "+" · Ctrl+N sesi baru · Ctrl+W tutup · Alt+panah / Alt+1..9 pindah tab · roda/geser menggulir
 
 System prompt: `/system` membuka editor (Ctrl+S simpan, Ctrl+R kembali ke bawaan, Ctrl+U kosongkan, Esc batal).
 `/system <teks>` mengganti langsung, `/system reset` mengembalikan bawaan. Hasil edit disimpan di

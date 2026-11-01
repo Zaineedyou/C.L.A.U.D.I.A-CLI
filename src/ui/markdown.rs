@@ -258,3 +258,4 @@ mod tests {
         assert_eq!(text.last().map(String::as_str), Some("╰───┴───╯"));
     }
 }
+

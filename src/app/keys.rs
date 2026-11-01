@@ -1,6 +1,12 @@
-use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use ratatui::{
+    crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent, MouseEventKind},
+    layout::Position,
+};
 
-use crate::editor::Editor;
+use crate::{
+    editor::Editor,
+    ui::{tab_hits, Click},
+};
 
 use super::App;
 
@@ -23,6 +29,27 @@ impl App {
             // Alt+panah / Alt+angka sudah ditangani sebagai pindah tab.
         } else {
             self.chat_key(key.code, ctrl);
+        }
+    }
+
+    /// Klik kiri pada tab atau "+" di baris sesi; roda/geser menggulir percakapan.
+    pub(super) fn on_mouse(&mut self, mouse: MouseEvent) {
+        match mouse.kind {
+            MouseEventKind::Down(MouseButton::Left) => {
+                if self.picker.is_some() || self.editor.is_some() || self.keyentry.is_some() {
+                    return;
+                }
+                let at = Position::new(mouse.column, mouse.row);
+                let hit = tab_hits(self.tab_area, self).into_iter().find(|(rect, _)| rect.contains(at));
+                match hit {
+                    Some((_, Click::Tab(i))) => self.switch_tab(i),
+                    Some((_, Click::New)) => self.new_tab(),
+                    None => {}
+                }
+            }
+            MouseEventKind::ScrollUp => self.scroll += 3,
+            MouseEventKind::ScrollDown => self.scroll = self.scroll.saturating_sub(3),
+            _ => {}
         }
     }
 

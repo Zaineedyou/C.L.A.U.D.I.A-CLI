@@ -27,8 +27,11 @@ async fn main() -> io::Result<()> {
     let mut app = App::new(Config::load(), client, tx.clone());
 
     let mut terminal = ratatui::init();
+    // Mouse/sentuhan dipakai buat klik tab sesi dan scroll.
+    let _ = ratatui::crossterm::execute!(io::stdout(), ratatui::crossterm::event::EnableMouseCapture);
     event::spawn_input(tx);
     let result = run(&mut terminal, &mut app, rx).await;
+    let _ = ratatui::crossterm::execute!(io::stdout(), ratatui::crossterm::event::DisableMouseCapture);
     ratatui::restore();
     result
 }

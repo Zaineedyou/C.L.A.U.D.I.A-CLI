@@ -49,6 +49,8 @@ pub struct App {
     pub cmd_sel: usize,
     pub tabs: Vec<Tab>,
     pub active: usize,
+    /// Posisi baris tab di layar, diisi tiap frame; dipakai buat mengenali klik.
+    pub tab_area: ratatui::layout::Rect,
     pub notice: Option<Notice>,
     pub scroll: usize,
     pub tick: usize,
@@ -76,6 +78,7 @@ impl App {
             cmd_sel: 0,
             tabs: vec![Tab::default()],
             active: 0,
+            tab_area: ratatui::layout::Rect::default(),
             notice: None,
             scroll: 0,
             tick: 0,
@@ -95,6 +98,7 @@ impl App {
         match ev {
             Ev::Tick => self.on_tick(),
             Ev::Key(key) => self.on_key(key),
+            Ev::Mouse(mouse) => self.on_mouse(mouse),
             Ev::Chunk(text) => {
                 // Sisa potongan dari balasan yang sudah dibatalkan atau beda tab dibuang.
                 if self.streaming {

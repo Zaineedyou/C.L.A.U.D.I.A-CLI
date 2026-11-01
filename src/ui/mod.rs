@@ -13,6 +13,8 @@ use ratatui::{prelude::*, widgets::Paragraph};
 
 use crate::app::{App, Notice, SLIDE_FRAMES};
 
+pub use tabs::Click;
+
 use theme::{ease, fg, lerp, shimmer, DIM, ERR, HEAD};
 
 const PROMPT_H: u16 = 4;
@@ -78,9 +80,15 @@ fn approx_tokens(app: &App) -> usize {
     app.messages.iter().map(|m| m.content.chars().count()).sum::<usize>() / 4
 }
 
+/// Area baris tab yang bisa diklik (tiap tab dan tombol "+").
+pub fn tab_hits(area: Rect, app: &App) -> Vec<(Rect, Click)> {
+    tabs::hits(area, app)
+}
+
 pub fn draw(f: &mut Frame, app: &mut App) {
     let area = f.area();
     let s = Screen::new(area, app.slide);
+    app.tab_area = s.tabs;
 
     anim::backdrop(f, area, app.tick);
     tabs::draw(f, s.tabs, app);
