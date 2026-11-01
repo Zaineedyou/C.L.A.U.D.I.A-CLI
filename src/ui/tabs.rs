@@ -5,7 +5,10 @@ use unicode_width::UnicodeWidthChar;
 
 use crate::app::App;
 
-use super::theme::{fg, mix, spinner, AI, BG, DIM, FG, PANEL};
+use super::{
+    anim,
+    theme::{fg, mix, spinner, AI, BG, DIM, FG, WHITE},
+};
 
 /// Lebar minimum sebuah tab; kalau tidak muat, tab digulir ke sekitar tab aktif.
 const MIN_W: usize = 12;
@@ -50,14 +53,14 @@ pub fn draw(f: &mut Frame, area: Rect, app: &App) {
             None => ("New session".to_string(), true),
         };
         let base = if active { FG } else { DIM };
-        // Tab aktif jadi kartu terang; yang lain transparan supaya latar pastel terlihat.
-        let bg = if active { PANEL } else { BG };
+        // Tab aktif tebal dan diberi kaca buram setelah digambar; yang lain transparan.
         let style = |color: Color| {
-            let mut s = Style::new().fg(color);
+            let s = Style::new().fg(color);
             if active {
-                s = s.bg(PANEL).add_modifier(Modifier::BOLD);
+                s.add_modifier(Modifier::BOLD)
+            } else {
+                s
             }
-            s
         };
 
         let busy = active && app.streaming;
@@ -79,7 +82,7 @@ pub fn draw(f: &mut Frame, area: Rect, app: &App) {
         for (k, ch) in text.chars().enumerate() {
             let from_end = chars - k;
             let color = if cut && from_end <= FADE {
-                mix(base, bg, 0.2 + 0.7 * ((FADE - from_end) as f32 / (FADE - 1) as f32))
+                mix(base, BG, 0.2 + 0.7 * ((FADE - from_end) as f32 / (FADE - 1) as f32))
             } else {
                 base
             };
@@ -91,4 +94,6 @@ pub fn draw(f: &mut Frame, area: Rect, app: &App) {
         spans.push(Span::styled(" + ", fg(DIM)));
     }
     f.render_widget(Paragraph::new(Line::from(spans)), area);
+    let x = area.x + ((app.active - start) * width) as u16;
+    anim::tint(f, Rect::new(x, area.y, width as u16, 1).intersection(area), WHITE, 0.6);
 }

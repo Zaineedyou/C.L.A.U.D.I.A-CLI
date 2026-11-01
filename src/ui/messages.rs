@@ -10,7 +10,7 @@ use crate::{
 
 use super::{
     anim, markdown,
-    theme::{fg, mix, pulse, shimmer, ACCENT_B, AI, DIM, PANEL, USER},
+    theme::{fg, mix, pulse, shimmer, ACCENT_B, AI, DIM, USER},
 };
 
 /// Seluruh percakapan sebagai baris yang sudah di-wrap untuk lebar `width`.
@@ -33,19 +33,7 @@ fn user(msg: &Message, width: usize, out: &mut Vec<Line<'static>>) {
     let mut rows = vec![Line::from(Span::styled("╭", fg(USER)))];
     markdown::render(&msg.content, width.saturating_sub(2), &mid, &mut rows);
     rows.push(Line::from(Span::styled("╰", fg(USER))));
-    out.extend(rows.into_iter().map(|row| panel(row, width)));
-}
-
-/// Beri latar panel dan isi sisa lebar baris.
-fn panel(mut line: Line<'static>, width: usize) -> Line<'static> {
-    let used = line.width();
-    for span in &mut line.spans {
-        if span.style.bg.is_none() {
-            span.style = span.style.bg(PANEL);
-        }
-    }
-    line.spans.push(Span::styled(" ".repeat(width.saturating_sub(used)), Style::new().bg(PANEL)));
-    line
+    out.extend(rows);
 }
 
 fn assistant(app: &App, msg: &Message, last: bool, width: usize, out: &mut Vec<Line<'static>>) {

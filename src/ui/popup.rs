@@ -1,6 +1,6 @@
 use ratatui::{
     prelude::*,
-    widgets::{Block, BorderType, Clear, Padding, Paragraph},
+    widgets::{Block, BorderType, Padding, Paragraph},
 };
 
 use crate::{
@@ -11,7 +11,7 @@ use crate::{
 
 use super::{
     anim,
-    theme::{bold, ease, fg, flow, flowing, lerp, mix, spinner, DIM, ERR, FG, HEAD, PANEL},
+    theme::{ease, fg, flow, flowing, lerp, spinner, AI, DIM, ERR, FG, HEAD, WHITE},
 };
 
 pub fn draw(f: &mut Frame, app: &App) {
@@ -35,12 +35,12 @@ fn key_popup(f: &mut Frame, app: &App) {
     let block = Block::bordered()
         .border_type(BorderType::Rounded)
         .border_style(fg(flow(0.3, app.tick)))
-        .style(Style::new().fg(FG).bg(PANEL))
+        .style(Style::new().fg(FG))
         .padding(Padding::horizontal(1))
         .title(Line::from(head))
         .title_bottom(Span::styled(" enter simpan · ctrl+u hapus · esc balik ", fg(DIM)));
     let inner = block.inner(area);
-    f.render_widget(Clear, area);
+    anim::frost(f, area, 0.72);
     f.render_widget(block, area);
     if inner.width < 6 || inner.height < 3 {
         return;
@@ -50,7 +50,7 @@ fn key_popup(f: &mut Frame, app: &App) {
     f.render_widget(Paragraph::new(Span::styled(hint, fg(DIM))), Rect::new(inner.x, inner.y, inner.width, 1));
 
     let input_area = Rect::new(inner.x, inner.y + 2, inner.width, 1);
-    anim::fill(f, input_area, mix(PANEL, FG, 0.06));
+    anim::tint(f, input_area, FG, 0.10);
     let (visible, col) = entry.input.window((inner.width as usize).saturating_sub(2));
     let shown = if entry.input.is_empty() {
         Span::styled("API key", fg(DIM))
@@ -82,12 +82,12 @@ fn editor_popup(f: &mut Frame, app: &App) {
     let block = Block::bordered()
         .border_type(BorderType::Rounded)
         .border_style(fg(flow(0.3, app.tick)))
-        .style(Style::new().fg(FG).bg(PANEL))
+        .style(Style::new().fg(FG))
         .padding(Padding::horizontal(1))
         .title(Line::from(head))
         .title_bottom(Span::styled(" ctrl+s simpan · ctrl+r bawaan · ctrl+u kosong · esc batal ", fg(DIM)));
     let inner = block.inner(area);
-    f.render_widget(Clear, area);
+    anim::frost(f, area, 0.72);
     f.render_widget(block, area);
     if inner.width < 2 || inner.height == 0 {
         return;
@@ -127,12 +127,12 @@ fn picker_popup(f: &mut Frame, app: &App) {
     let block = Block::bordered()
         .border_type(BorderType::Rounded)
         .border_style(fg(flow(0.3, app.tick)))
-        .style(Style::new().fg(FG).bg(PANEL))
+        .style(Style::new().fg(FG))
         .padding(Padding::horizontal(1))
         .title(Line::from(head))
         .title_bottom(Span::styled(" ↑↓ pilih · Enter ok · Esc tutup ", fg(DIM)));
     let inner = block.inner(area);
-    f.render_widget(Clear, area);
+    anim::frost(f, area, 0.72);
     f.render_widget(block, area);
 
     let visible = picker.visible();
@@ -187,7 +187,7 @@ fn empty_line(picker: &Picker) -> Line<'static> {
 }
 
 fn item_line(item: &Item, selected: bool) -> Line<'static> {
-    let style = if selected { bold(HEAD).bg(mix(PANEL, FG, 0.08)) } else { fg(FG) };
+    let style = if selected { Style::new().fg(WHITE).bg(AI).add_modifier(Modifier::BOLD) } else { fg(FG) };
     let mut spans = vec![
         Span::styled(if selected { "▸ " } else { "  " }, style),
         Span::styled(item.label.clone(), style),

@@ -12,14 +12,15 @@ pub const PANEL: Color = Color::Rgb(255, 247, 251);
 /// Latar kartu sidebar.
 pub const RAISED: Color = Color::Rgb(255, 243, 249);
 pub const FG: Color = Color::Rgb(62, 42, 72);
-pub const DIM: Color = Color::Rgb(138, 108, 142);
+pub const DIM: Color = Color::Rgb(116, 88, 124);
 pub const USER: Color = Color::Rgb(214, 84, 156);
 pub const AI: Color = Color::Rgb(150, 100, 222);
 pub const HEAD: Color = Color::Rgb(226, 118, 40);
 pub const OK: Color = Color::Rgb(56, 160, 112);
 pub const ERR: Color = Color::Rgb(214, 66, 92);
-pub const CODE_FG: Color = Color::Rgb(40, 150, 156);
+pub const CODE_FG: Color = Color::Rgb(18, 116, 128);
 pub const CODE_BG: Color = Color::Rgb(246, 238, 255);
+pub const WHITE: Color = Color::Rgb(255, 255, 255);
 pub const ACCENT_A: Color = Color::Rgb(214, 84, 156);
 pub const ACCENT_B: Color = Color::Rgb(90, 150, 232);
 
@@ -91,11 +92,14 @@ pub fn flow(pos: f32, tick: usize) -> Color {
     palette(&RAINBOW, pos * 0.6 - tick as f32 * 0.004)
 }
 
-/// Warna latar pastel di sel (x, y) dari layar `w` x `h`; bergeser sangat pelan.
+/// Warna latar pastel di sel (x, y) dari layar `w` x `h`. Bergeser pelan dan dibulatkan per 4 tingkat,
+/// supaya sebagian besar sel tidak berubah antar frame (lebih hemat dan tidak berkedip).
 pub fn backdrop(x: u16, y: u16, w: u16, h: u16, tick: usize) -> Color {
     let fx = x as f32 / w.max(1) as f32;
     let fy = y as f32 / h.max(1) as f32;
-    palette(&PASTEL, fx * 0.35 + fy * 0.65 + tick as f32 * 0.0007)
+    let drift = (tick / 8) as f32 * 0.0056;
+    let (r, g, b) = rgb(palette(&PASTEL, fx * 0.35 + fy * 0.65 + drift));
+    Color::Rgb(r / 4 * 4, g / 4 * 4, b / 4 * 4)
 }
 
 /// Posisi animasi 0..1 dengan easing smoothstep.

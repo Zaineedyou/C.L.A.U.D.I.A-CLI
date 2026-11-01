@@ -6,7 +6,7 @@ use ratatui::{
 };
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
-use super::theme::{bold, fg, mix, BG, CODE_BG, CODE_FG, DIM, FG, HEAD};
+use super::theme::{bold, fg, mix, BG, CODE_FG, DIM, FG, HEAD};
 
 pub fn render(text: &str, width: usize, bar: &Span<'static>, out: &mut Vec<Line<'static>>) {
     let row = |spans: Vec<Span<'static>>| {
@@ -28,7 +28,7 @@ pub fn render(text: &str, width: usize, bar: &Span<'static>, out: &mut Vec<Line<
             };
             out.push(row(vec![Span::styled(label, fg(DIM))]));
         } else if in_code {
-            let code_style = Style::new().fg(CODE_FG).bg(CODE_BG);
+            let code_style = Style::new().fg(CODE_FG);
             for piece in hard_wrap(&raw.replace('\t', "    "), width.saturating_sub(2).max(4)) {
                 out.push(row(vec![Span::styled(format!(" {piece} "), code_style)]));
             }

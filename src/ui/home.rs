@@ -13,7 +13,9 @@ use super::{
 pub fn draw(f: &mut Frame, s: &Screen, app: &App, alpha: f32) {
     let area = s.main;
     let logo_x = area.x + area.width.saturating_sub(anim::LOGO_W) / 2;
-    anim::logo(f, logo_x, s.home_top, app.tick, alpha);
+    if area.width >= anim::LOGO_W + 2 {
+        anim::logo(f, logo_x, s.home_top, app.tick, alpha);
+    }
 
     let tagline = "✦ ngobrol santai, apa pun topiknya ✦";
     let tag_w = (tagline.chars().count() as u16).min(area.width);

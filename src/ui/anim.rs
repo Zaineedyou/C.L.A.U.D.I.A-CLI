@@ -2,22 +2,23 @@
 
 use ratatui::prelude::*;
 
-use super::theme::{backdrop as backdrop_color, fg, flow, mix, BG, FG};
+use super::theme::{backdrop as backdrop_color, fg, flow, mix, BG, FG, WHITE};
 
-/// Huruf CLAUDIA, tinggi 3 baris, sudut membulat.
-const LETTERS: [[&str; 3]; 7] = [
-    ["╭───", "│   ", "╰───"], // C
-    ["│   ", "│   ", "╰───"], // L
-    ["╭──╮", "├──┤", "╵  ╵"], // A
-    ["╷  ╷", "│  │", "╰──╯"], // U
-    ["╭─╮ ", "│  │", "╰─╯ "], // D
-    ["╶┬╴ ", " │  ", "╶┴╴ "], // I
-    ["╭──╮", "├──┤", "╵  ╵"], // A
+/// Huruf CLAUDIA besar: tinggi 5 baris, lebar 6 kolom, sudut dibulatkan pakai setengah blok.
+const LETTERS: [[&str; 5]; 7] = [
+    ["▄████▄", "██    ", "██    ", "██    ", "▀████▀"], // C
+    ["██    ", "██    ", "██    ", "██    ", "██████"], // L
+    ["▄████▄", "██  ██", "██████", "██  ██", "██  ██"], // A
+    ["██  ██", "██  ██", "██  ██", "██  ██", "▀████▀"], // U
+    ["█████▄", "██  ██", "██  ██", "██  ██", "█████▀"], // D
+    ["██████", "  ██  ", "  ██  ", "  ██  ", "██████"], // I
+    ["▄████▄", "██  ██", "██████", "██  ██", "██  ██"], // A
 ];
 
-/// 7 huruf x 4 kolom + 6 spasi.
-pub const LOGO_W: u16 = 34;
-pub const LOGO_H: u16 = 3;
+/// 7 huruf x 6 kolom + 6 spasi.
+pub const LOGO_W: u16 = 48;
+/// 5 baris huruf + 1 baris cadangan untuk gelombang.
+pub const LOGO_H: u16 = 6;
 
 /// Latar gradien pastel (pink, peach, lilac, biru langit, mint) yang bergeser pelan.
 pub fn backdrop(f: &mut Frame, area: Rect, tick: usize) {
@@ -32,18 +33,20 @@ pub fn backdrop(f: &mut Frame, area: Rect, tick: usize) {
     }
 }
 
-/// Logo: tiap huruf berwarna pelangi yang mengalir pelan.
+/// Logo besar: tiap huruf naik-turun satu baris mengikuti gelombang, dan warnanya pelangi yang mengalir.
 pub fn logo(f: &mut Frame, x: u16, y: u16, tick: usize, alpha: f32) {
     let buf = f.buffer_mut();
+    let t = tick as f32 * 0.08;
     for (i, glyph) in LETTERS.iter().enumerate() {
+        let drop = (((t - i as f32 * 0.9).sin() + 1.0) / 2.0).round() as u16;
         for (r, row) in glyph.iter().enumerate() {
             for (c, ch) in row.chars().enumerate() {
                 if ch == ' ' {
                     continue;
                 }
-                let col = i * 5 + c;
-                let color = flow(col as f32 / LOGO_W as f32, tick);
-                if let Some(cell) = buf.cell_mut((x + col as u16, y + r as u16)) {
+                let col = i * 7 + c;
+                let color = flow(col as f32 / LOGO_W as f32, tick * 2);
+                if let Some(cell) = buf.cell_mut((x + col as u16, y + r as u16 + drop)) {
                     cell.set_char(ch).set_fg(mix(BG, color, alpha));
                 }
             }
@@ -79,8 +82,9 @@ pub fn sparkles(f: &mut Frame, area: Rect, tick: usize, alpha: f32) {
                 2 => '✦',
                 _ => '✧',
             };
-            let twinkle = 0.5 + 0.5 * (tick as f32 * 0.03 + (h % 97) as f32).sin();
-            let color = flow((h % 100) as f32 / 100.0, tick);
+            let slow = tick / 4 * 4;
+            let twinkle = 0.5 + 0.5 * (slow as f32 * 0.03 + (h % 97) as f32).sin();
+            let color = flow((h % 100) as f32 / 100.0, slow);
             if let Some(cell) = buf.cell_mut((x, y)) {
                 let base = cell.bg;
                 cell.set_char(glyph).set_fg(mix(base, color, twinkle * 0.85 * alpha));
@@ -112,30 +116,46 @@ pub fn slashes(width: usize, tick: usize) -> Vec<Span<'static>> {
         .collect()
 }
 
-/// Latar polos satu warna; simbol lama di area itu ikut dihapus.
-pub fn fill(f: &mut Frame, area: Rect, bg: Color) {
+/// Kaca buram: simbol lama dihapus dan latar di bawahnya dipucatkan ke putih, jadi kartu tetap
+/// berwarna mengikuti latar pastel tapi teks gelap mudah dibaca.
+pub fn frost(f: &mut Frame, area: Rect, amount: f32) {
     let buf = f.buffer_mut();
     for y in area.top()..area.bottom() {
         for x in area.left()..area.right() {
             if let Some(cell) = buf.cell_mut((x, y)) {
+                let bg = mix(cell.bg, WHITE, amount);
                 cell.set_char(' ').set_bg(bg);
             }
         }
     }
 }
 
-/// Kartu bulat: isi `bg` dengan bingkai ╭─╮ yang warnanya pelangi mengalir.
-pub fn rounded_card(f: &mut Frame, area: Rect, bg: Color, tick: usize) {
+/// Hanya menggeser warna latar ke `color`; simbol dan warna teks tidak berubah.
+pub fn tint(f: &mut Frame, area: Rect, color: Color, amount: f32) {
+    let buf = f.buffer_mut();
+    for y in area.top()..area.bottom() {
+        for x in area.left()..area.right() {
+            if let Some(cell) = buf.cell_mut((x, y)) {
+                let bg = mix(cell.bg, color, amount);
+                cell.set_bg(bg);
+            }
+        }
+    }
+}
+
+/// Kartu bulat: bagian dalam berkaca buram, bingkai ╭─╮ berwarna pelangi mengalir. Sel bingkai
+/// tidak diisi, jadi sudutnya terlihat membulat dan bingkai pas di tepi kartu.
+pub fn rounded_card(f: &mut Frame, area: Rect, tick: usize) {
     if area.width < 3 || area.height < 3 {
         return;
     }
-    fill(f, area, bg);
+    frost(f, Rect::new(area.x + 1, area.y + 1, area.width - 2, area.height - 2), 0.6);
     let (w, h) = (area.width, area.height);
     let total = (w + h) as f32;
     let buf = f.buffer_mut();
     let mut put = |x: u16, y: u16, ch: char, pos: f32| {
         if let Some(cell) = buf.cell_mut((x, y)) {
-            cell.set_char(ch).set_fg(flow(pos, tick)).set_bg(bg);
+            cell.set_char(ch).set_fg(flow(pos, tick));
         }
     };
     for dx in 0..w {

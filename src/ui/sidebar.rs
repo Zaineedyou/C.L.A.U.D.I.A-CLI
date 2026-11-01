@@ -6,7 +6,7 @@ use crate::{app::App, chat::Role};
 
 use super::{
     anim, approx_tokens,
-    theme::{bold, fg, DIM, ERR, FG, OK, RAISED},
+    theme::{bold, fg, DIM, ERR, FG, OK},
 };
 
 /// Judul sesi: baris pertama pesan user pertama, dipotong sesuai lebar.
@@ -31,7 +31,7 @@ pub fn draw(f: &mut Frame, area: Rect, app: &App) {
     }
     // Kartu bulat yang melayang di atas latar pastel.
     let card = Rect::new(area.x + 1, area.y, area.width - 2, area.height - 1);
-    anim::rounded_card(f, card, RAISED, app.tick);
+    anim::rounded_card(f, card, app.tick);
     let inner = Rect::new(card.x + 2, card.y + 1, card.width - 4, card.height.saturating_sub(2));
     let w = inner.width as usize;
 

@@ -6,7 +6,7 @@ use crate::app::App;
 
 use super::{
     anim, approx_tokens,
-    theme::{bold, fg, AI, DIM, ERR, FG, PANEL},
+    theme::{bold, fg, AI, DIM, ERR, FG},
     Screen,
 };
 
@@ -23,7 +23,7 @@ pub fn draw(f: &mut Frame, s: &Screen, app: &App, screen: Rect) {
         return;
     }
     // Kartu bulat dengan bingkai pelangi; geraknya sedikit lebih cepat saat balasan datang.
-    anim::rounded_card(f, area, PANEL, if app.streaming { app.tick * 2 } else { app.tick });
+    anim::rounded_card(f, area, if app.streaming { app.tick * 2 } else { app.tick });
 
     let text_area = Rect::new(area.x + 2, area.y + 1, area.width - 4, 1);
     let meta_area = Rect::new(area.x + 2, area.y + 2, area.width - 4, 1);

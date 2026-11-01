@@ -1,14 +1,12 @@
 //! Dropdown perintah "/" di atas prompt, seperti OpenCode: baris terpilih berlatar ungu, deskripsi redup.
 
-use ratatui::{
-    prelude::*,
-    widgets::{Clear, Paragraph},
-};
+use ratatui::{prelude::*, widgets::Paragraph};
 
 use crate::app::App;
 
 use super::{
-    theme::{mix, AI, BG, DIM, FG, PANEL},
+    anim,
+    theme::{mix, AI, BG, DIM, FG, WHITE},
     Screen,
 };
 
@@ -36,20 +34,27 @@ pub fn draw(f: &mut Frame, s: &Screen, app: &App) {
         .take(rows as usize)
         .map(|(i, cmd)| {
             let selected = i == sel;
-            let bg = if selected { AI } else { PANEL };
-            let (name_color, desc_color) = if selected { (BG, BG) } else { (FG, DIM) };
+            let (name_color, desc_color) = if selected { (WHITE, WHITE) } else { (FG, DIM) };
+            let paint = |color: Color| {
+                let style = Style::new().fg(color);
+                if selected {
+                    style.bg(AI)
+                } else {
+                    style
+                }
+            };
             let name_part: String = format!(" {:<w$}", format!("/{}", cmd.name), w = name_w).chars().take(room).collect();
             let left = name_part.chars().count();
             let desc_part: String = cmd.desc.chars().take(room.saturating_sub(left)).collect();
             let pad = room.saturating_sub(left + desc_part.chars().count());
             Line::from(vec![
-                Span::styled("│", Style::new().fg(mix(BG, DIM, 0.5)).bg(bg)),
-                Span::styled(name_part, Style::new().fg(name_color).bg(bg)),
-                Span::styled(desc_part, Style::new().fg(desc_color).bg(bg)),
-                Span::styled(" ".repeat(pad), Style::new().bg(bg)),
+                Span::styled("│", paint(mix(BG, DIM, 0.5))),
+                Span::styled(name_part, paint(name_color)),
+                Span::styled(desc_part, paint(desc_color)),
+                Span::styled(" ".repeat(pad), paint(FG)),
             ])
         })
         .collect();
-    f.render_widget(Clear, area);
+    anim::frost(f, area, 0.72);
     f.render_widget(Paragraph::new(lines), area);
 }

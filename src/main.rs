@@ -39,6 +39,8 @@ async fn run(
     mut rx: UnboundedReceiver<Ev>,
 ) -> io::Result<()> {
     while !app.quit {
+        // Kursor disembunyikan selama layar digambar ulang supaya tidak terlihat melompat ke mana-mana.
+        terminal.hide_cursor()?;
         terminal.draw(|f| ui::draw(f, app))?;
         let Some(ev) = rx.recv().await else { break };
         app.on_event(ev);
