@@ -22,9 +22,9 @@ pub fn render(text: &str, width: usize, bar: &Span<'static>, out: &mut Vec<Line<
         if let Some(lang) = trimmed.strip_prefix("```") {
             in_code = !in_code;
             let label = match (in_code, lang.trim()) {
-                (true, "") => "┌─ kode".to_string(),
-                (true, lang) => format!("┌─ {lang}"),
-                (false, _) => "└─".to_string(),
+                (true, "") => "╭─ kode".to_string(),
+                (true, lang) => format!("╭─ {lang}"),
+                (false, _) => "╰─".to_string(),
             };
             out.push(row(vec![Span::styled(label, fg(DIM))]));
         } else if in_code {
@@ -114,7 +114,7 @@ fn render_table(
         Line::from(vec![bar.clone(), Span::styled(text, line_style)])
     };
 
-    out.push(rule("┌", "┬", "┐"));
+    out.push(rule("╭", "┬", "╮"));
     for (r, cells_row) in rows.iter().enumerate() {
         let base = if has_header && r == 0 { bold(FG) } else { fg(FG) };
         let cells: Vec<Vec<String>> =
@@ -132,7 +132,7 @@ fn render_table(
             }
             out.push(Line::from(spans));
         }
-        out.push(if r + 1 == rows.len() { rule("└", "┴", "┘") } else { rule("├", "┼", "┤") });
+        out.push(if r + 1 == rows.len() { rule("╰", "┴", "╯") } else { rule("├", "┼", "┤") });
     }
     true
 }
@@ -254,7 +254,7 @@ mod tests {
         let mut out = Vec::new();
         render("| a | b |\n| --- | --- |\n| 1 | 2 |", 30, &Span::raw(""), &mut out);
         let text: Vec<String> = out.iter().map(|l| l.to_string()).collect();
-        assert_eq!(text.first().map(String::as_str), Some("┌───┬───┐"));
-        assert_eq!(text.last().map(String::as_str), Some("└───┴───┘"));
+        assert_eq!(text.first().map(String::as_str), Some("╭───┬───╮"));
+        assert_eq!(text.last().map(String::as_str), Some("╰───┴───╯"));
     }
 }

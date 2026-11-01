@@ -1,6 +1,8 @@
 mod commands;
 mod keys;
 
+use commands::{filter, Cmd, COMMANDS};
+
 use std::{collections::HashMap, time::Instant};
 
 use reqwest::Client;
@@ -13,6 +15,7 @@ use crate::{
     editor::Editor,
     event::{Ev, Tx},
     input::Input,
+    keyentry::KeyEntry,
     picker::{Item, Kind, Picker, POPUP_FRAMES},
     provider,
 };
@@ -21,7 +24,7 @@ use crate::{
 const HISTORY_LIMIT: usize = 40;
 
 /// Jumlah tick transisi dari layar awal ke layar sesi.
-pub const SLIDE_FRAMES: u8 = 12;
+pub const SLIDE_FRAMES: u8 = 16;
 
 /// Satu sesi. Sesi yang sedang aktif hidup di `App::messages`; isi tab-nya di sini basi.
 #[derive(Default)]
@@ -41,6 +44,9 @@ pub struct App {
     pub input: Input,
     pub picker: Option<Picker>,
     pub editor: Option<Editor>,
+    pub keyentry: Option<KeyEntry>,
+    /// Baris yang dipilih di dropdown perintah "/".
+    pub cmd_sel: usize,
     pub tabs: Vec<Tab>,
     pub active: usize,
     pub notice: Option<Notice>,
@@ -66,6 +72,8 @@ impl App {
             input: Input::default(),
             picker: None,
             editor: None,
+            keyentry: None,
+            cmd_sel: 0,
             tabs: vec![Tab::default()],
             active: 0,
             notice: None,
@@ -116,6 +124,9 @@ impl App {
         }
         if let Some(editor) = self.editor.as_mut() {
             editor.age = (editor.age + 1).min(POPUP_FRAMES);
+        }
+        if let Some(entry) = self.keyentry.as_mut() {
+            entry.age = (entry.age + 1).min(POPUP_FRAMES);
         }
     }
 
@@ -291,6 +302,83 @@ impl App {
         }
     }
 
+    // ── perintah, connect, API key ────────────────────────
+
+    /// Perintah yang cocok dengan ketikan sekarang ("/mo" → /model); kosong kalau input bukan perintah.
+    pub fn command_matches(&self) -> Vec<&'static Cmd> {
+        if self.picker.is_some() || self.editor.is_some() || self.keyentry.is_some() {
+            return Vec::new();
+        }
+        let text = self.input.text();
+        match text.strip_prefix('/') {
+            Some(query) if !query.contains(' ') => filter(query),
+            _ => Vec::new(),
+        }
+    }
+
+    fn complete_command(&mut self, cmd: &Cmd) {
+        self.input.clear();
+        self.cmd_sel = 0;
+        let text = if cmd.arg { format!("/{} ", cmd.name) } else { format!("/{}", cmd.name) };
+        for c in text.chars() {
+            self.input.insert(c);
+        }
+    }
+
+    fn open_commands(&mut self) {
+        let items = COMMANDS
+            .iter()
+            .map(|c| Item { id: c.name.into(), label: format!("/{}", c.name), hint: c.desc.into(), current: false })
+            .collect();
+        self.picker = Some(Picker::new(Kind::Command, items, false));
+    }
+
+    fn open_connect(&mut self) {
+        let items = provider::ALL
+            .iter()
+            .enumerate()
+            .map(|(i, p)| {
+                let hint = if p.key_env.is_empty() && !p.is_custom() {
+                    "lokal"
+                } else if self.cfg.is_ready(p) {
+                    "terhubung"
+                } else {
+                    "belum"
+                };
+                Item { id: p.id.into(), label: p.name.into(), hint: hint.into(), current: i == self.cfg.selected }
+            })
+            .collect();
+        self.picker = Some(Picker::new(Kind::Connect, items, false));
+    }
+
+    /// Provider berkunci langsung ke dialog API key; provider lokal/custom cukup dipilih.
+    fn begin_connect(&mut self, index: usize) {
+        let p = &provider::ALL[index];
+        if p.key_env.is_empty() || p.is_custom() {
+            self.set_provider(index);
+        } else {
+            self.keyentry = Some(KeyEntry::new(index));
+        }
+    }
+
+    fn save_key(&mut self) {
+        let Some(entry) = &self.keyentry else { return };
+        let key = entry.input.text().trim().to_string();
+        let index = entry.provider;
+        if key.is_empty() {
+            if let Some(entry) = self.keyentry.as_mut() {
+                entry.error = Some("isi API key dulu".into());
+            }
+            return;
+        }
+        self.keyentry = None;
+        let p = &provider::ALL[index];
+        self.cfg.set_key(p.id, key);
+        self.set_provider(index);
+        self.info(format!("{} terhubung, pilih model", p.name));
+        self.open_models();
+    }
+
     // ── provider & model ──────────────────────────────────
 
     fn set_provider(&mut self, index: usize) {
@@ -381,6 +469,20 @@ impl App {
                 }
             }
             Kind::Model => self.set_model(choice),
+            Kind::Connect => {
+                if let Some(i) = provider::find(&choice) {
+                    self.begin_connect(i);
+                }
+            }
+            Kind::Command => {
+                if let Some(cmd) = COMMANDS.iter().find(|c| c.name == choice) {
+                    if cmd.arg {
+                        self.complete_command(cmd);
+                    } else {
+                        self.run_command(&format!("/{}", cmd.name));
+                    }
+                }
+            }
         }
     }
 }

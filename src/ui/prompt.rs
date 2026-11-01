@@ -1,4 +1,4 @@
-//! Kotak prompt ala OpenCode: panel abu-abu, garis aksen di kiri, baris model, dan petunjuk di bawahnya.
+//! Kartu prompt: bingkai bulat berwarna pelangi, baris model, dan petunjuk di bawahnya.
 
 use ratatui::{prelude::*, widgets::Paragraph};
 
@@ -6,7 +6,7 @@ use crate::app::App;
 
 use super::{
     anim, approx_tokens,
-    theme::{bold, fg, flow, AI, DIM, ERR, FG, PANEL},
+    theme::{bold, fg, AI, DIM, ERR, FG, PANEL},
     Screen,
 };
 
@@ -19,22 +19,14 @@ const PLACEHOLDERS: [&str; 4] = [
 
 pub fn draw(f: &mut Frame, s: &Screen, app: &App, screen: Rect) {
     let area = s.prompt;
-    if area.width < 8 || area.height < 4 {
+    if area.width < 10 || area.height < 4 {
         return;
     }
-    anim::fill(f, area, PANEL);
-
-    // Garis kiri: ungu polos; mengalir saat balasan sedang datang.
-    let bars: Vec<Line> = (0..area.height)
-        .map(|row| {
-            let color = if app.streaming { flow(row as f32 / area.height as f32, app.tick * 3) } else { AI };
-            Line::from(Span::styled("┃", fg(color)))
-        })
-        .collect();
-    f.render_widget(Paragraph::new(bars), Rect::new(area.x, area.y, 1, area.height));
+    // Kartu bulat dengan bingkai pelangi; geraknya sedikit lebih cepat saat balasan datang.
+    anim::rounded_card(f, area, PANEL, if app.streaming { app.tick * 2 } else { app.tick });
 
     let text_area = Rect::new(area.x + 2, area.y + 1, area.width - 4, 1);
-    let meta_area = Rect::new(area.x + 2, area.y + 3, area.width - 4, 1);
+    let meta_area = Rect::new(area.x + 2, area.y + 2, area.width - 4, 1);
 
     let (visible, col) = app.input.window(text_area.width as usize);
     let input = if app.input.is_empty() {
@@ -64,13 +56,6 @@ pub fn draw(f: &mut Frame, s: &Screen, app: &App, screen: Rect) {
     if s.hint.bottom() > screen.bottom() {
         return;
     }
-    // Tepi bawah: "╹" lalu setengah blok yang menyambung ke panel.
-    let edge = Line::from(vec![
-        Span::styled("╹", fg(AI)),
-        Span::styled("▀".repeat(area.width as usize - 1), fg(PANEL)),
-    ]);
-    f.render_widget(Paragraph::new(edge), s.edge);
-
     // Petunjuk di bawah prompt: folder kerja di kiri, pintasan di kanan.
     let left = Span::styled(app.cwd.clone(), fg(DIM));
     f.render_widget(Paragraph::new(Line::from(left.clone())), s.hint);
@@ -80,7 +65,7 @@ pub fn draw(f: &mut Frame, s: &Screen, app: &App, screen: Rect) {
         right.push(Span::styled(format!("{} token  ", approx_tokens(app)), fg(DIM)));
     }
     right.push(Span::styled("ctrl+p ", fg(FG)));
-    right.push(Span::styled("provider  ", fg(DIM)));
+    right.push(Span::styled("commands  ", fg(DIM)));
     right.push(Span::styled("ctrl+o ", fg(FG)));
     right.push(Span::styled("model", fg(DIM)));
     let right_w: usize = right.iter().map(|sp| sp.content.chars().count()).sum();

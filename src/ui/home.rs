@@ -6,7 +6,7 @@ use crate::app::App;
 
 use super::{
     anim,
-    theme::{faded, fg, DIM},
+    theme::{faded, fg, flowing, DIM},
     Screen,
 };
 
@@ -14,6 +14,12 @@ pub fn draw(f: &mut Frame, s: &Screen, app: &App, alpha: f32) {
     let area = s.main;
     let logo_x = area.x + area.width.saturating_sub(anim::LOGO_W) / 2;
     anim::logo(f, logo_x, s.home_top, app.tick, alpha);
+
+    let tagline = "✦ ngobrol santai, apa pun topiknya ✦";
+    let tag_w = (tagline.chars().count() as u16).min(area.width);
+    let tag_x = area.x + area.width.saturating_sub(tag_w) / 2;
+    let tag = Paragraph::new(Line::from(faded(flowing(tagline, app.tick), alpha)));
+    f.render_widget(tag, Rect::new(tag_x, s.home_top + anim::LOGO_H, tag_w, 1));
 
     let full = f.area();
     if full.width < 44 || full.height < 8 {

@@ -27,12 +27,12 @@ pub fn lines(app: &App, width: usize) -> Vec<Line<'static>> {
     out
 }
 
-/// Pesan user: panel dengan garis aksen di kiri, seperti di OpenCode.
+/// Pesan user: kartu dengan garis kiri yang membulat di ujungnya (╭ │ ╰).
 fn user(msg: &Message, width: usize, out: &mut Vec<Line<'static>>) {
-    let bar = Span::styled("┃ ", fg(USER));
-    let mut rows = vec![Line::from(bar.clone())];
-    markdown::render(&msg.content, width.saturating_sub(2), &bar, &mut rows);
-    rows.push(Line::from(bar));
+    let mid = Span::styled("│ ", fg(USER));
+    let mut rows = vec![Line::from(Span::styled("╭", fg(USER)))];
+    markdown::render(&msg.content, width.saturating_sub(2), &mid, &mut rows);
+    rows.push(Line::from(Span::styled("╰", fg(USER))));
     out.extend(rows.into_iter().map(|row| panel(row, width)));
 }
 

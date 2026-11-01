@@ -26,11 +26,13 @@ fn title(app: &App, width: usize) -> String {
 }
 
 pub fn draw(f: &mut Frame, area: Rect, app: &App) {
-    if area.width < 12 || area.height < 4 {
+    if area.width < 14 || area.height < 5 {
         return;
     }
-    anim::fill(f, area, RAISED);
-    let inner = Rect::new(area.x + 2, area.y + 1, area.width - 4, area.height.saturating_sub(2));
+    // Kartu bulat yang melayang di atas latar pastel.
+    let card = Rect::new(area.x + 1, area.y, area.width - 2, area.height - 1);
+    anim::rounded_card(f, card, RAISED, app.tick);
+    let inner = Rect::new(card.x + 2, card.y + 1, card.width - 4, card.height.saturating_sub(2));
     let w = inner.width as usize;
 
     let p = app.cfg.current();

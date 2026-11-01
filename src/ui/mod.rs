@@ -1,4 +1,5 @@
 mod anim;
+mod dropdown;
 mod home;
 mod markdown;
 mod messages;
@@ -8,18 +9,15 @@ mod sidebar;
 mod tabs;
 mod theme;
 
-use ratatui::{
-    prelude::*,
-    widgets::{Block, Paragraph},
-};
+use ratatui::{prelude::*, widgets::Paragraph};
 
 use crate::app::{App, Notice, SLIDE_FRAMES};
 
-use theme::{ease, fg, lerp, shimmer, BG, DIM, ERR, FG, HEAD};
+use theme::{ease, fg, lerp, shimmer, DIM, ERR, HEAD};
 
 const PROMPT_H: u16 = 4;
-/// Prompt + tepi bawah + baris petunjuk.
-const BLOCK_H: u16 = PROMPT_H + 2;
+/// Prompt + baris petunjuk.
+const BLOCK_H: u16 = PROMPT_H + 1;
 /// Dari atas konten layar awal sampai kotak prompt: logo lalu dua baris kosong.
 const HOME_PROMPT_OFFSET: u16 = anim::LOGO_H + 2;
 const HOME_H: u16 = HOME_PROMPT_OFFSET + BLOCK_H;
@@ -36,7 +34,6 @@ pub struct Screen {
     pub messages: Rect,
     pub status: Rect,
     pub prompt: Rect,
-    pub edge: Rect,
     pub hint: Rect,
     pub home_top: u16,
 }
@@ -70,8 +67,7 @@ impl Screen {
             messages: Rect::new(main.x + 3, main.y, main.width.saturating_sub(5), gap - main.y),
             status: Rect::new(main.x + 3, gap, main.width.saturating_sub(5), 1),
             prompt: Rect::new(x, y, width, PROMPT_H.min(main.height)),
-            edge: Rect::new(x, y + PROMPT_H, width, 1),
-            hint: Rect::new(x, y + PROMPT_H + 1, width, 1),
+            hint: Rect::new(x, y + PROMPT_H, width, 1),
             home_top,
         }
     }
@@ -84,16 +80,18 @@ fn approx_tokens(app: &App) -> usize {
 
 pub fn draw(f: &mut Frame, app: &mut App) {
     let area = f.area();
-    f.render_widget(Block::new().style(Style::new().fg(FG).bg(BG)), area);
     let s = Screen::new(area, app.slide);
 
+    anim::backdrop(f, area, app.tick);
     tabs::draw(f, s.tabs, app);
     if app.messages.is_empty() {
+        anim::sparkles(f, area, app.tick, 1.0 - s.t);
         home::draw(f, &s, app, 1.0 - s.t);
     }
     chat(f, s.messages, app);
     status(f, s.status, app);
     prompt::draw(f, &s, app, area);
+    dropdown::draw(f, &s, app);
     if let Some(side) = s.sidebar {
         sidebar::draw(f, side, app);
     }

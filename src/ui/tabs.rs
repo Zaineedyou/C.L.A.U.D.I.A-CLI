@@ -50,14 +50,14 @@ pub fn draw(f: &mut Frame, area: Rect, app: &App) {
             None => ("New session".to_string(), true),
         };
         let base = if active { FG } else { DIM };
+        // Tab aktif jadi kartu terang; yang lain transparan supaya latar pastel terlihat.
         let bg = if active { PANEL } else { BG };
         let style = |color: Color| {
-            let s = Style::new().fg(color).bg(bg);
+            let mut s = Style::new().fg(color);
             if active {
-                s.add_modifier(Modifier::BOLD)
-            } else {
-                s
+                s = s.bg(PANEL).add_modifier(Modifier::BOLD);
             }
+            s
         };
 
         let busy = active && app.streaming;
@@ -65,6 +65,8 @@ pub fn draw(f: &mut Frame, area: Rect, app: &App) {
             format!("{} ", spinner(app.tick))
         } else if empty {
             "+ ".to_string()
+        } else if active {
+            "✦ ".to_string()
         } else {
             "  ".to_string()
         };

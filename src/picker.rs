@@ -7,6 +7,10 @@ pub const POPUP_FRAMES: u8 = 6;
 pub enum Kind {
     Provider,
     Model,
+    /// Pilih provider yang mau dihubungkan (lanjut ke dialog API key).
+    Connect,
+    /// Palet perintah (Ctrl+P).
+    Command,
 }
 
 pub struct Item {

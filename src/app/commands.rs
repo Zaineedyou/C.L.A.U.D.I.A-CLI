@@ -2,7 +2,41 @@ use crate::provider;
 
 use super::App;
 
-const HELP: &str = "/provider · /model · /key <kunci> · /system · /new · /close · /tab <n> · /clear · /exit";
+const HELP: &str = "Ketik / buat daftar perintah · Ctrl+P palet perintah · Ctrl+O model · /connect buat isi API key";
+
+/// Perintah slash, dipakai dropdown "/" dan palet perintah (Ctrl+P).
+pub struct Cmd {
+    pub name: &'static str,
+    pub desc: &'static str,
+    /// Perintah yang butuh argumen: dilengkapi dulu, tidak langsung dijalankan.
+    pub arg: bool,
+}
+
+pub const COMMANDS: &[Cmd] = &[
+    Cmd { name: "connect", desc: "Hubungkan provider dan masukin API key", arg: false },
+    Cmd { name: "provider", desc: "Ganti provider", arg: false },
+    Cmd { name: "model", desc: "Ganti model", arg: false },
+    Cmd { name: "system", desc: "Edit system prompt", arg: false },
+    Cmd { name: "new", desc: "Sesi baru", arg: false },
+    Cmd { name: "close", desc: "Tutup sesi ini", arg: false },
+    Cmd { name: "clear", desc: "Bersihkan sesi ini", arg: false },
+    Cmd { name: "tab", desc: "Pindah ke tab nomor ...", arg: true },
+    Cmd { name: "key", desc: "Isi API key provider ini", arg: true },
+    Cmd { name: "disconnect", desc: "Hapus API key provider ini", arg: false },
+    Cmd { name: "help", desc: "Bantuan", arg: false },
+    Cmd { name: "exit", desc: "Keluar", arg: false },
+];
+
+/// Perintah yang cocok dengan `query` (tanpa "/"): yang diawali query dulu, lalu urut abjad.
+pub fn filter(query: &str) -> Vec<&'static Cmd> {
+    let q = query.to_lowercase();
+    let mut hits: Vec<&'static Cmd> = COMMANDS
+        .iter()
+        .filter(|c| c.name.contains(q.as_str()) || c.desc.to_lowercase().contains(q.as_str()))
+        .collect();
+    hits.sort_by_key(|c| (!c.name.starts_with(q.as_str()), c.name));
+    hits
+}
 
 impl App {
     pub(super) fn run_command(&mut self, line: &str) {
@@ -18,11 +52,21 @@ impl App {
             },
             ("/model" | "/models", "") => self.open_models(),
             ("/model" | "/models", name) => self.set_model(name.to_string()),
-            ("/key", "") => self.err("pakai: /key <api-key>"),
+            ("/connect", "") => self.open_connect(),
+            ("/connect", name) => match provider::find(name) {
+                Some(i) => self.begin_connect(i),
+                None => self.err(format!("provider '{name}' nggak ada (ketik /connect buat daftar)")),
+            },
+            ("/key", "") => self.err("pakai: /key <api-key> (atau /connect buat dialognya)"),
             ("/key", key) => {
-                let id = self.cfg.current().id;
-                self.cfg.keys.insert(id, key.to_string());
-                self.info("API key diset (cuma untuk sesi ini)");
+                let p = self.cfg.current();
+                self.cfg.set_key(p.id, key.to_string());
+                self.info(format!("API key {} disimpan", p.name));
+            }
+            ("/disconnect", _) => {
+                let p = self.cfg.current();
+                self.cfg.forget_key(p.id);
+                self.info(format!("API key {} dihapus", p.name));
             }
             ("/system" | "/prompt", "") => self.open_system_editor(),
             ("/system" | "/prompt", "reset") => {

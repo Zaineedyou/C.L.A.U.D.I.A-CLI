@@ -5,6 +5,7 @@ mod config;
 mod editor;
 mod event;
 mod input;
+mod keyentry;
 mod picker;
 mod provider;
 mod ui;

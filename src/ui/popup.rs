@@ -6,16 +6,66 @@ use ratatui::{
 use crate::{
     app::App,
     picker::{Item, Kind, Picker, POPUP_FRAMES},
+    provider,
 };
 
 use super::{
     anim,
-    theme::{bold, ease, fg, flow, flowing, lerp, mix, spinner, DIM, FG, HEAD, PANEL},
+    theme::{bold, ease, fg, flow, flowing, lerp, mix, spinner, DIM, ERR, FG, HEAD, PANEL},
 };
 
 pub fn draw(f: &mut Frame, app: &App) {
     editor_popup(f, app);
+    key_popup(f, app);
     picker_popup(f, app);
+}
+
+/// Dialog isi API key: input bertopeng (•), Enter simpan, Esc balik ke daftar provider.
+fn key_popup(f: &mut Frame, app: &App) {
+    let Some(entry) = &app.keyentry else { return };
+    let p = &provider::ALL[entry.provider];
+    let height = lerp(5, 9, ease(entry.age, POPUP_FRAMES));
+    let area = centered(f.area(), 64, height);
+
+    let mut head = vec![Span::raw(" ")];
+    head.extend(flowing(&format!("Hubungkan {}", p.name), app.tick));
+    head.push(Span::raw(" "));
+    head.extend(anim::slashes(8, app.tick));
+    head.push(Span::raw(" "));
+    let block = Block::bordered()
+        .border_type(BorderType::Rounded)
+        .border_style(fg(flow(0.3, app.tick)))
+        .style(Style::new().fg(FG).bg(PANEL))
+        .padding(Padding::horizontal(1))
+        .title(Line::from(head))
+        .title_bottom(Span::styled(" enter simpan · ctrl+u hapus · esc balik ", fg(DIM)));
+    let inner = block.inner(area);
+    f.render_widget(Clear, area);
+    f.render_widget(block, area);
+    if inner.width < 6 || inner.height < 3 {
+        return;
+    }
+
+    let hint = format!("atau set {} di environment", p.requirement());
+    f.render_widget(Paragraph::new(Span::styled(hint, fg(DIM))), Rect::new(inner.x, inner.y, inner.width, 1));
+
+    let input_area = Rect::new(inner.x, inner.y + 2, inner.width, 1);
+    anim::fill(f, input_area, mix(PANEL, FG, 0.06));
+    let (visible, col) = entry.input.window((inner.width as usize).saturating_sub(2));
+    let shown = if entry.input.is_empty() {
+        Span::styled("API key", fg(DIM))
+    } else {
+        Span::styled("•".repeat(visible.chars().count()), fg(FG))
+    };
+    f.render_widget(Paragraph::new(Line::from(vec![Span::raw(" "), shown])), input_area);
+
+    if inner.height >= 5 {
+        if let Some(error) = &entry.error {
+            let rect = Rect::new(inner.x, inner.y + 4, inner.width, 1);
+            f.render_widget(Paragraph::new(Span::styled(error.clone(), fg(ERR))), rect);
+        }
+    }
+    f.set_cursor_position((input_area.x + 1 + col as u16, input_area.y));
 }
 
 /// Popup edit system prompt: teks banyak baris dengan kursor.
@@ -65,6 +115,8 @@ fn picker_popup(f: &mut Frame, app: &App) {
     let title = match picker.kind {
         Kind::Provider => format!("Provider ({})", picker.items.len()),
         Kind::Model => format!("Model · {} ({})", app.cfg.current().name, picker.items.len()),
+        Kind::Connect => format!("Hubungkan provider ({})", picker.items.len()),
+        Kind::Command => format!("Perintah ({})", picker.items.len()),
     };
     // Judul ala Crush: teks gradien lalu ╱╱╱╱.
     let mut head = vec![Span::raw(" ")];

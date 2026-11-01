@@ -15,6 +15,8 @@ impl App {
             self.quit = true;
         } else if self.editor.is_some() {
             self.editor_key(key.code, ctrl);
+        } else if self.keyentry.is_some() {
+            self.keyentry_key(key.code, ctrl);
         } else if self.picker.is_some() {
             self.picker_key(key.code, ctrl);
         } else if alt && self.tab_key(key.code) {
@@ -53,6 +55,37 @@ impl App {
         }
     }
 
+    fn keyentry_key(&mut self, code: KeyCode, ctrl: bool) {
+        match code {
+            KeyCode::Esc => {
+                self.keyentry = None;
+                self.open_connect();
+            }
+            KeyCode::Enter => self.save_key(),
+            KeyCode::Char('u') if ctrl => {
+                if let Some(entry) = self.keyentry.as_mut() {
+                    entry.input.clear();
+                }
+            }
+            _ if ctrl => {}
+            _ => {
+                if let Some(entry) = self.keyentry.as_mut() {
+                    entry.error = None;
+                    match code {
+                        KeyCode::Char(c) => entry.input.insert(c),
+                        KeyCode::Backspace => entry.input.backspace(),
+                        KeyCode::Delete => entry.input.delete(),
+                        KeyCode::Left => entry.input.left(),
+                        KeyCode::Right => entry.input.right(),
+                        KeyCode::Home => entry.input.home(),
+                        KeyCode::End => entry.input.end(),
+                        _ => {}
+                    }
+                }
+            }
+        }
+    }
+
     fn picker_key(&mut self, code: KeyCode, ctrl: bool) {
         match code {
             KeyCode::Esc => self.picker = None,
@@ -67,13 +100,54 @@ impl App {
     }
 
     fn chat_key(&mut self, code: KeyCode, ctrl: bool) {
+        // Dropdown perintah "/": panah pilih, Tab melengkapi, Enter menjalankan, Esc menutup.
+        let matches = self.command_matches();
+        if !matches.is_empty() {
+            let count = matches.len();
+            let sel = self.cmd_sel.min(count - 1);
+            match code {
+                KeyCode::Up => {
+                    self.cmd_sel = (sel + count - 1) % count;
+                    return;
+                }
+                KeyCode::Down => {
+                    self.cmd_sel = (sel + 1) % count;
+                    return;
+                }
+                KeyCode::Tab => {
+                    self.complete_command(matches[sel]);
+                    return;
+                }
+                KeyCode::Enter => {
+                    let cmd = matches[sel];
+                    if cmd.arg {
+                        self.complete_command(cmd);
+                    } else {
+                        self.input.clear();
+                        self.cmd_sel = 0;
+                        self.run_command(&format!("/{}", cmd.name));
+                    }
+                    return;
+                }
+                KeyCode::Esc => {
+                    self.input.clear();
+                    self.cmd_sel = 0;
+                    return;
+                }
+                _ => {}
+            }
+        }
+        if matches!(code, KeyCode::Char(_) | KeyCode::Backspace | KeyCode::Delete) {
+            self.cmd_sel = 0;
+        }
+
         match code {
             KeyCode::Char('d') if ctrl && self.input.is_empty() => self.quit = true,
             KeyCode::Char('l') if ctrl => self.clear(),
             KeyCode::Char('n') if ctrl => self.new_tab(),
             KeyCode::Char('w') if ctrl => self.close_tab(),
             KeyCode::Char('u') if ctrl => self.input.clear(),
-            KeyCode::Char('p') if ctrl => self.open_providers(),
+            KeyCode::Char('p') if ctrl => self.open_commands(),
             KeyCode::Char('o') if ctrl => self.open_models(),
             KeyCode::Char('a') if ctrl => self.input.home(),
             KeyCode::Char('e') if ctrl => self.input.end(),
