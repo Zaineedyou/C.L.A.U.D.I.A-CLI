@@ -1,48 +1,58 @@
+//! Sidebar sesi ala OpenCode: judul, konteks, dan folder kerja di dasar.
+
 use ratatui::{prelude::*, widgets::Paragraph};
 
-use crate::app::App;
+use crate::{app::App, chat::Role};
 
 use super::{
-    anim,
-    theme::{bold, fg, flowing, DIM, ERR, FG, OK, PANEL},
+    anim, approx_tokens,
+    theme::{bold, fg, DIM, ERR, FG, OK, RAISED},
 };
 
-const SHORTCUTS: [&str; 4] = ["ctrl+p  provider", "ctrl+o  model", "ctrl+l  bersihkan", "esc     batalkan"];
+/// Judul sesi: baris pertama pesan user pertama, dipotong sesuai lebar.
+fn title(app: &App, width: usize) -> String {
+    let first = app
+        .messages
+        .iter()
+        .find(|m| m.role == Role::User)
+        .and_then(|m| m.content.lines().next())
+        .unwrap_or("Sesi baru");
+    let mut out: String = first.chars().take(width).collect();
+    if first.chars().count() > width && width > 1 {
+        out.pop();
+        out.push('…');
+    }
+    out
+}
 
 pub fn draw(f: &mut Frame, area: Rect, app: &App) {
-    if area.width < 12 {
+    if area.width < 12 || area.height < 4 {
         return;
     }
-    anim::fill(f, area, PANEL);
+    anim::fill(f, area, RAISED);
     let inner = Rect::new(area.x + 2, area.y + 1, area.width - 4, area.height.saturating_sub(2));
+    let w = inner.width as usize;
 
     let p = app.cfg.current();
     let dot = fg(if app.cfg.is_ready(p) { OK } else { ERR });
-    let tokens = app.messages.iter().map(|m| m.content.chars().count()).sum::<usize>() / 4;
-    let w = inner.width as usize;
-    // Judul bagian ala Crush: "Sesi ╱╱╱╱╱╱╱╱".
-    let heading = |text: &str| {
-        let mut spans = vec![Span::styled(text.to_string(), bold(FG)), Span::raw(" ")];
-        spans.extend(anim::slashes(w.saturating_sub(text.chars().count() + 1), app.tick));
-        Line::from(spans)
-    };
     let dim = |text: String| Line::from(Span::styled(text, fg(DIM)));
 
-    let mut lines = vec![
-        Line::from(flowing("C.L.A.U.D.I.A", app.tick)),
+    let lines = vec![
+        Line::from(Span::styled(title(app, w), bold(FG))),
         Line::from(anim::slashes(w, app.tick)),
-        dim(format!("CLI v{}", env!("CARGO_PKG_VERSION"))),
         Line::default(),
-        heading("Sesi"),
+        Line::from(Span::styled("Context", bold(FG))),
+        dim(format!("{} tokens", approx_tokens(app))),
         dim(format!("{} pesan", app.messages.len())),
-        dim(format!("~{tokens} token")),
         Line::default(),
-        heading("Provider"),
+        Line::from(Span::styled("Provider", bold(FG))),
         Line::from(vec![Span::styled("● ", dot), Span::styled(p.name, fg(FG))]),
         dim(app.cfg.model()),
-        Line::default(),
-        heading("Pintasan"),
     ];
-    lines.extend(SHORTCUTS.iter().map(|s| dim(s.to_string())));
     f.render_widget(Paragraph::new(lines), inner);
+
+    if inner.height > 1 {
+        let foot = Rect::new(inner.x, inner.bottom() - 1, inner.width, 1);
+        f.render_widget(Paragraph::new(Span::styled(app.cwd.clone(), fg(DIM))), foot);
+    }
 }

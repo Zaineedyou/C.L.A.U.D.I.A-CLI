@@ -52,9 +52,9 @@ fn classify(raw: &str, trimmed: &str) -> (String, Style) {
 fn inline(piece: &str, base: Style) -> Vec<Span<'static>> {
     let style_of = |bold: bool, code: bool| {
         if code {
-            Style::new().fg(CODE_FG).bg(CODE_BG)
+            Style::new().fg(CODE_FG)
         } else if bold {
-            base.add_modifier(Modifier::BOLD)
+            Style::new().fg(HEAD).add_modifier(Modifier::BOLD)
         } else {
             base
         }

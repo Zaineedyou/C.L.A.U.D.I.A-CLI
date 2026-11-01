@@ -71,6 +71,11 @@ fn assistant(app: &App, msg: &Message, last: bool, width: usize, out: &mut Vec<L
         }
     }
     if !streaming {
-        out.push(Line::from(vec![indent, Span::styled("▣ ", fg(AI)), Span::styled(msg.tag.clone(), fg(DIM))]));
+        // "Claudia · model · 12s · 54.3 tok/s": nama berwarna, sisanya redup (seperti OpenCode).
+        let (name, rest) = match msg.tag.split_once(" · ") {
+            Some((name, rest)) => (name.to_string(), format!(" · {rest}")),
+            None => (msg.tag.clone(), String::new()),
+        };
+        out.push(Line::from(vec![indent, Span::styled(name, fg(AI)), Span::styled(rest, fg(DIM))]));
     }
 }

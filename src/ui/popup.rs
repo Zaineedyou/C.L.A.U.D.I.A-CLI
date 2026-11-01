@@ -10,7 +10,7 @@ use crate::{
 
 use super::{
     anim,
-    theme::{bold, ease, fg, flow, flowing, lerp, spinner, CODE_BG, DIM, FG, HEAD, PANEL},
+    theme::{bold, ease, fg, flow, flowing, lerp, mix, spinner, DIM, FG, HEAD, PANEL},
 };
 
 pub fn draw(f: &mut Frame, app: &App) {
@@ -92,7 +92,7 @@ fn empty_line(picker: &Picker) -> Line<'static> {
 }
 
 fn item_line(item: &Item, selected: bool) -> Line<'static> {
-    let style = if selected { bold(HEAD).bg(CODE_BG) } else { fg(FG) };
+    let style = if selected { bold(HEAD).bg(mix(PANEL, FG, 0.08)) } else { fg(FG) };
     let mut spans = vec![
         Span::styled(if selected { "▸ " } else { "  " }, style),
         Span::styled(item.label.clone(), style),

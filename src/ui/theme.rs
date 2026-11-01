@@ -5,20 +5,22 @@ use ratatui::{
     text::Span,
 };
 
-pub const BG: Color = Color::Rgb(12, 12, 22);
-pub const PANEL: Color = Color::Rgb(22, 22, 38);
-pub const FG: Color = Color::Rgb(220, 222, 240);
-pub const DIM: Color = Color::Rgb(110, 114, 145);
-pub const USER: Color = Color::Rgb(255, 190, 110);
-pub const AI: Color = Color::Rgb(180, 140, 255);
-pub const HEAD: Color = Color::Rgb(120, 220, 255);
-pub const OK: Color = Color::Rgb(120, 230, 160);
-pub const ERR: Color = Color::Rgb(255, 100, 120);
-pub const CODE_FG: Color = Color::Rgb(130, 230, 190);
-pub const CODE_BG: Color = Color::Rgb(30, 32, 52);
-pub const ACCENT_A: Color = Color::Rgb(150, 110, 255);
-pub const ACCENT_B: Color = Color::Rgb(80, 220, 255);
-pub const WHITE: Color = Color::Rgb(255, 255, 255);
+pub const BG: Color = Color::Rgb(255, 255, 255);
+/// Latar prompt, pesan user, dan blok kode.
+pub const PANEL: Color = Color::Rgb(244, 244, 244);
+/// Latar sidebar.
+pub const RAISED: Color = Color::Rgb(250, 250, 250);
+pub const FG: Color = Color::Rgb(26, 26, 26);
+pub const DIM: Color = Color::Rgb(138, 138, 138);
+pub const USER: Color = Color::Rgb(118, 92, 172);
+pub const AI: Color = Color::Rgb(118, 92, 172);
+pub const HEAD: Color = Color::Rgb(214, 130, 28);
+pub const OK: Color = Color::Rgb(52, 140, 90);
+pub const ERR: Color = Color::Rgb(200, 60, 70);
+pub const CODE_FG: Color = Color::Rgb(52, 140, 90);
+pub const CODE_BG: Color = Color::Rgb(244, 244, 244);
+pub const ACCENT_A: Color = Color::Rgb(124, 92, 200);
+pub const ACCENT_B: Color = Color::Rgb(40, 150, 190);
 
 const SPINNER: [&str; 10] = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
@@ -85,7 +87,7 @@ pub fn shimmer(text: &str, tick: usize, base: Color) -> Vec<Span<'static>> {
         .enumerate()
         .map(|(i, c)| {
             let glow = (1.0 - (i as f32 / n - center).abs() / 0.25).max(0.0);
-            Span::styled(c.to_string(), fg(mix(base, WHITE, glow)))
+            Span::styled(c.to_string(), fg(mix(base, FG, glow)))
         })
         .collect()
 }

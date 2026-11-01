@@ -1,7 +1,7 @@
 mod commands;
 mod keys;
 
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Instant};
 
 use reqwest::Client;
 use tokio::task::JoinHandle;
@@ -40,6 +40,7 @@ pub struct App {
     pub cwd: String,
     pub streaming: bool,
     pub quit: bool,
+    started: Option<Instant>,
     client: Client,
     tx: Tx,
     task: Option<JoinHandle<()>>,
@@ -60,6 +61,7 @@ impl App {
             cwd: display_cwd(),
             streaming: false,
             quit: false,
+            started: None,
             client,
             tx,
             task: None,
@@ -148,12 +150,22 @@ impl App {
         let tag = format!("{} · {}", self.cfg.name, self.cfg.model());
         self.messages.push(Message::new(Role::Assistant, "").tagged(tag));
         self.streaming = true;
+        self.started = Some(Instant::now());
         self.task = Some(api::spawn_chat(self.client.clone(), self.target(), history, self.tx.clone()));
     }
 
     fn finish_stream(&mut self) {
         self.streaming = false;
         self.task = None;
+        if let Some(start) = self.started.take() {
+            let secs = start.elapsed().as_secs_f32().max(0.1);
+            if let Some(msg) = self.messages.last_mut() {
+                if msg.role == Role::Assistant && !msg.content.is_empty() {
+                    let tokens = (msg.content.chars().count() as f32 / 4.0).max(1.0);
+                    msg.tag = format!("{} · {} · {:.1} tok/s", msg.tag, format_duration(secs), tokens / secs);
+                }
+            }
+        }
         self.drop_empty_reply();
     }
 
@@ -268,5 +280,15 @@ impl App {
             }
             Kind::Model => self.set_model(choice),
         }
+    }
+}
+
+/// "45s" atau "1m 14s".
+fn format_duration(secs: f32) -> String {
+    let total = secs.round() as u64;
+    if total >= 60 {
+        format!("{}m {}s", total / 60, total % 60)
+    } else {
+        format!("{total}s")
     }
 }

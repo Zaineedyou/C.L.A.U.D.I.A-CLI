@@ -17,11 +17,13 @@ use crate::app::{App, Notice, SLIDE_FRAMES};
 use theme::{ease, fg, lerp, shimmer, BG, DIM, ERR, FG, HEAD};
 
 const PROMPT_H: u16 = 4;
-/// Jarak dari atas konten layar awal sampai kotak prompt: logo, judul, versi, spasi.
-const HOME_PROMPT_OFFSET: u16 = anim::LOGO_H + 5;
-const HOME_H: u16 = HOME_PROMPT_OFFSET + PROMPT_H + 2;
-const SIDEBAR_W: u16 = 34;
-const SIDEBAR_MIN_SCREEN: u16 = 100;
+/// Prompt + tepi bawah + baris petunjuk.
+const BLOCK_H: u16 = PROMPT_H + 2;
+/// Dari atas konten layar awal sampai kotak prompt: logo lalu dua baris kosong.
+const HOME_PROMPT_OFFSET: u16 = anim::LOGO_H + 2;
+const HOME_H: u16 = HOME_PROMPT_OFFSET + BLOCK_H;
+const SIDEBAR_W: u16 = 42;
+const SIDEBAR_MIN_SCREEN: u16 = 106;
 
 /// Pembagian area layar. Dihitung ulang tiap frame dari `app.slide`, jadi
 /// prompt meluncur dari tengah ke bawah dan sidebar melebar mulus.
@@ -32,25 +34,25 @@ pub struct Screen {
     pub messages: Rect,
     pub status: Rect,
     pub prompt: Rect,
-    pub footer: Rect,
+    pub edge: Rect,
+    pub hint: Rect,
     pub home_top: u16,
 }
 
 impl Screen {
     fn new(area: Rect, slide: u8) -> Self {
         let t = ease(slide, SLIDE_FRAMES);
-        let footer = Rect::new(area.x, area.bottom().saturating_sub(1), area.width, 1);
-        let body = Rect { height: area.height.saturating_sub(1), ..area };
-
         let side_w = if area.width >= SIDEBAR_MIN_SCREEN { lerp(0, SIDEBAR_W, t) } else { 0 };
-        let main = Rect { width: body.width - side_w, ..body };
-        let sidebar = (side_w > 0).then(|| Rect::new(main.right(), body.y, side_w, body.height));
+        let main = Rect { width: area.width - side_w, ..area };
+        let sidebar = (side_w > 0).then(|| Rect::new(main.right(), area.y, side_w, area.height));
 
-        let full_w = main.width.saturating_sub(4);
-        let width = lerp(full_w.min(72), full_w, t);
-        let x = main.x + (main.width - width) / 2;
+        let home_w = main.width.saturating_sub(4).min(75);
+        let session_w = main.width.saturating_sub(5);
+        let width = lerp(home_w, session_w, t);
+        let x = lerp(main.x + (main.width - home_w) / 2, main.x + 3, t);
+
         let home_top = main.y + main.height.saturating_sub(HOME_H) / 2;
-        let bottom_y = main.bottom().saturating_sub(PROMPT_H);
+        let bottom_y = main.bottom().saturating_sub(BLOCK_H);
         let home_y = (home_top + HOME_PROMPT_OFFSET).min(bottom_y);
         let y = lerp(home_y, bottom_y, t).max(main.y);
 
@@ -59,13 +61,19 @@ impl Screen {
             t,
             main,
             sidebar,
-            messages: Rect::new(main.x + 2, main.y, main.width.saturating_sub(4), gap - main.y),
-            status: Rect::new(main.x + 2, gap, main.width.saturating_sub(4), 1),
+            messages: Rect::new(main.x + 3, main.y, main.width.saturating_sub(5), gap - main.y),
+            status: Rect::new(main.x + 3, gap, main.width.saturating_sub(5), 1),
             prompt: Rect::new(x, y, width, PROMPT_H.min(main.height)),
-            footer,
+            edge: Rect::new(x, y + PROMPT_H, width, 1),
+            hint: Rect::new(x, y + PROMPT_H + 1, width, 1),
             home_top,
         }
     }
+}
+
+/// Perkiraan jumlah token seluruh percakapan (4 karakter per token).
+fn approx_tokens(app: &App) -> usize {
+    app.messages.iter().map(|m| m.content.chars().count()).sum::<usize>() / 4
 }
 
 pub fn draw(f: &mut Frame, app: &mut App) {
@@ -74,16 +82,14 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     let s = Screen::new(area, app.slide);
 
     if app.messages.is_empty() {
-        anim::stars(f, area, app.tick, 1.0 - s.t);
         home::draw(f, &s, app, 1.0 - s.t);
     }
     chat(f, s.messages, app);
     status(f, s.status, app);
-    prompt::draw(f, s.prompt, app);
+    prompt::draw(f, &s, app, area);
     if let Some(side) = s.sidebar {
         sidebar::draw(f, side, app);
     }
-    footer(f, s.footer, app);
     popup::draw(f, app);
 }
 
@@ -116,13 +122,4 @@ fn status(f: &mut Frame, area: Rect, app: &App) {
         _ => return,
     };
     f.render_widget(Paragraph::new(Line::from(spans)), area);
-}
-
-fn footer(f: &mut Frame, area: Rect, app: &App) {
-    let left = format!(" {}", app.cwd);
-    let right = "ctrl+p provider  ctrl+o model  /help ";
-    f.render_widget(Paragraph::new(Span::styled(left.clone(), fg(DIM))), area);
-    if left.chars().count() + right.chars().count() < area.width as usize {
-        f.render_widget(Paragraph::new(Span::styled(right, fg(DIM))).alignment(Alignment::Right), area);
-    }
 }
