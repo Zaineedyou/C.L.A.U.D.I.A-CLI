@@ -14,6 +14,49 @@ use super::{
 };
 
 pub fn draw(f: &mut Frame, app: &App) {
+    editor_popup(f, app);
+    picker_popup(f, app);
+}
+
+/// Popup edit system prompt: teks banyak baris dengan kursor.
+fn editor_popup(f: &mut Frame, app: &App) {
+    let Some(editor) = &app.editor else { return };
+    let height = lerp(5, 20, ease(editor.age, POPUP_FRAMES));
+    let area = centered(f.area(), 76, height);
+
+    let mut head = vec![Span::raw(" ")];
+    head.extend(flowing("System prompt", app.tick));
+    head.push(Span::raw(" "));
+    head.extend(anim::slashes(8, app.tick));
+    head.push(Span::raw(" "));
+    let block = Block::bordered()
+        .border_type(BorderType::Rounded)
+        .border_style(fg(flow(0.3, app.tick)))
+        .style(Style::new().fg(FG).bg(PANEL))
+        .padding(Padding::horizontal(1))
+        .title(Line::from(head))
+        .title_bottom(Span::styled(" ctrl+s simpan · ctrl+r bawaan · ctrl+u kosong · esc batal ", fg(DIM)));
+    let inner = block.inner(area);
+    f.render_widget(Clear, area);
+    f.render_widget(block, area);
+    if inner.width < 2 || inner.height == 0 {
+        return;
+    }
+
+    let (rows, cx, cy) = editor.layout(inner.width as usize);
+    let visible = inner.height as usize;
+    let top = (cy + 1).saturating_sub(visible);
+    let lines: Vec<Line> = rows
+        .into_iter()
+        .skip(top)
+        .take(visible)
+        .map(|row| Line::from(Span::styled(row, fg(FG))))
+        .collect();
+    f.render_widget(Paragraph::new(lines), inner);
+    f.set_cursor_position((inner.x + cx as u16, inner.y + (cy - top) as u16));
+}
+
+fn picker_popup(f: &mut Frame, app: &App) {
     let Some(picker) = &app.picker else { return };
     // Popup "tumbuh" dari kotak kecil ke ukuran penuh.
     let height = lerp(5, 24, ease(picker.age, POPUP_FRAMES));

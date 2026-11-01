@@ -5,6 +5,7 @@ mod messages;
 mod popup;
 mod prompt;
 mod sidebar;
+mod tabs;
 mod theme;
 
 use ratatui::{
@@ -29,6 +30,7 @@ const SIDEBAR_MIN_SCREEN: u16 = 106;
 /// prompt meluncur dari tengah ke bawah dan sidebar melebar mulus.
 pub struct Screen {
     pub t: f32,
+    pub tabs: Rect,
     pub main: Rect,
     pub sidebar: Option<Rect>,
     pub messages: Rect,
@@ -42,9 +44,12 @@ pub struct Screen {
 impl Screen {
     fn new(area: Rect, slide: u8) -> Self {
         let t = ease(slide, SLIDE_FRAMES);
-        let side_w = if area.width >= SIDEBAR_MIN_SCREEN { lerp(0, SIDEBAR_W, t) } else { 0 };
-        let main = Rect { width: area.width - side_w, ..area };
-        let sidebar = (side_w > 0).then(|| Rect::new(main.right(), area.y, side_w, area.height));
+        // Baris paling atas dipakai tab sesi; sisanya jadi badan layar.
+        let tabs = Rect::new(area.x, area.y, area.width, area.height.min(1));
+        let body = Rect::new(area.x, area.y + tabs.height, area.width, area.height - tabs.height);
+        let side_w = if body.width >= SIDEBAR_MIN_SCREEN { lerp(0, SIDEBAR_W, t) } else { 0 };
+        let main = Rect { width: body.width - side_w, ..body };
+        let sidebar = (side_w > 0).then(|| Rect::new(main.right(), body.y, side_w, body.height));
 
         let home_w = main.width.saturating_sub(4).min(75);
         let session_w = main.width.saturating_sub(5);
@@ -59,6 +64,7 @@ impl Screen {
         let gap = y.saturating_sub(1).max(main.y);
         Self {
             t,
+            tabs,
             main,
             sidebar,
             messages: Rect::new(main.x + 3, main.y, main.width.saturating_sub(5), gap - main.y),
@@ -81,6 +87,7 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     f.render_widget(Block::new().style(Style::new().fg(FG).bg(BG)), area);
     let s = Screen::new(area, app.slide);
 
+    tabs::draw(f, s.tabs, app);
     if app.messages.is_empty() {
         home::draw(f, &s, app, 1.0 - s.t);
     }

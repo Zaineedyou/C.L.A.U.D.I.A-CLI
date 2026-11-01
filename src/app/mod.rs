@@ -10,6 +10,7 @@ use crate::{
     api::{self, Target},
     chat::{Message, Role},
     config::{display_cwd, Config},
+    editor::Editor,
     event::{Ev, Tx},
     input::Input,
     picker::{Item, Kind, Picker, POPUP_FRAMES},
@@ -22,6 +23,13 @@ const HISTORY_LIMIT: usize = 40;
 /// Jumlah tick transisi dari layar awal ke layar sesi.
 pub const SLIDE_FRAMES: u8 = 12;
 
+/// Satu sesi. Sesi yang sedang aktif hidup di `App::messages`; isi tab-nya di sini basi.
+#[derive(Default)]
+pub struct Tab {
+    pub messages: Vec<Message>,
+    pub scroll: usize,
+}
+
 pub enum Notice {
     Info(String),
     Error(String),
@@ -32,6 +40,9 @@ pub struct App {
     pub messages: Vec<Message>,
     pub input: Input,
     pub picker: Option<Picker>,
+    pub editor: Option<Editor>,
+    pub tabs: Vec<Tab>,
+    pub active: usize,
     pub notice: Option<Notice>,
     pub scroll: usize,
     pub tick: usize,
@@ -54,6 +65,9 @@ impl App {
             messages: Vec::new(),
             input: Input::default(),
             picker: None,
+            editor: None,
+            tabs: vec![Tab::default()],
+            active: 0,
             notice: None,
             scroll: 0,
             tick: 0,
@@ -74,8 +88,11 @@ impl App {
             Ev::Tick => self.on_tick(),
             Ev::Key(key) => self.on_key(key),
             Ev::Chunk(text) => {
-                if let Some(msg) = self.messages.last_mut() {
-                    msg.content.push_str(&text);
+                // Sisa potongan dari balasan yang sudah dibatalkan atau beda tab dibuang.
+                if self.streaming {
+                    if let Some(msg) = self.messages.last_mut() {
+                        msg.content.push_str(&text);
+                    }
                 }
             }
             Ev::Done => self.finish_stream(),
@@ -96,6 +113,9 @@ impl App {
         };
         if let Some(picker) = self.picker.as_mut() {
             picker.age = (picker.age + 1).min(POPUP_FRAMES);
+        }
+        if let Some(editor) = self.editor.as_mut() {
+            editor.age = (editor.age + 1).min(POPUP_FRAMES);
         }
     }
 
@@ -181,6 +201,88 @@ impl App {
         self.messages.clear();
         self.notice = None;
         self.scroll = 0;
+    }
+
+    // ── tab sesi ──────────────────────────────────────────
+
+    /// Judul tab: baris pertama pesan user pertama; `None` untuk sesi kosong.
+    pub fn tab_title(&self, i: usize) -> Option<String> {
+        let messages = if i == self.active { &self.messages } else { &self.tabs.get(i)?.messages };
+        messages
+            .iter()
+            .find(|m| m.role == Role::User)
+            .and_then(|m| m.content.lines().next())
+            .map(|line| line.trim().to_string())
+    }
+
+    fn switch_tab(&mut self, target: usize) {
+        if target >= self.tabs.len() || target == self.active {
+            return;
+        }
+        self.cancel();
+        self.tabs[self.active] = Tab { messages: std::mem::take(&mut self.messages), scroll: self.scroll };
+        let next = std::mem::take(&mut self.tabs[target]);
+        self.messages = next.messages;
+        self.scroll = next.scroll;
+        self.active = target;
+        self.notice = None;
+    }
+
+    fn step_tab(&mut self, delta: isize) {
+        let count = self.tabs.len() as isize;
+        let target = (self.active as isize + delta).rem_euclid(count) as usize;
+        self.switch_tab(target);
+    }
+
+    fn new_tab(&mut self) {
+        if self.messages.is_empty() {
+            return;
+        }
+        let empty = (0..self.tabs.len()).find(|&i| i != self.active && self.tab_title(i).is_none());
+        if let Some(i) = empty {
+            self.switch_tab(i);
+            return;
+        }
+        self.cancel();
+        self.tabs[self.active] = Tab { messages: std::mem::take(&mut self.messages), scroll: self.scroll };
+        self.tabs.push(Tab::default());
+        self.active = self.tabs.len() - 1;
+        self.scroll = 0;
+        self.notice = None;
+    }
+
+    fn close_tab(&mut self) {
+        self.cancel();
+        if self.tabs.len() <= 1 {
+            self.messages.clear();
+            self.scroll = 0;
+            return;
+        }
+        self.tabs.remove(self.active);
+        let next = self.active.min(self.tabs.len() - 1);
+        let tab = std::mem::take(&mut self.tabs[next]);
+        self.messages = tab.messages;
+        self.scroll = tab.scroll;
+        self.active = next;
+        self.notice = None;
+    }
+
+    // ── system prompt ─────────────────────────────────────
+
+    fn open_system_editor(&mut self) {
+        self.editor = Some(Editor::new(&self.cfg.system));
+    }
+
+    fn save_system(&mut self) {
+        let Some(editor) = self.editor.take() else { return };
+        let text = editor.text().trim().to_string();
+        if text.is_empty() {
+            self.cfg.reset_system();
+            self.info("system prompt dikembalikan ke bawaan");
+        } else {
+            self.cfg.set_system(text);
+            self.info("system prompt disimpan, berlaku mulai pesan berikutnya");
+        }
     }
 
     fn drop_empty_reply(&mut self) {

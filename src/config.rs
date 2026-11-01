@@ -25,11 +25,28 @@ pub fn display_cwd() -> String {
     }
 }
 
-fn state_path() -> Option<PathBuf> {
+fn config_dir() -> Option<PathBuf> {
     let base = env::var_os("XDG_CONFIG_HOME")
         .map(PathBuf::from)
         .or_else(|| env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))?;
-    Some(base.join("claudia/state"))
+    Some(base.join("claudia"))
+}
+
+fn state_path() -> Option<PathBuf> {
+    Some(config_dir()?.join("state"))
+}
+
+/// System prompt hasil edit, disimpan apa adanya (boleh banyak baris).
+fn system_path() -> Option<PathBuf> {
+    Some(config_dir()?.join("system"))
+}
+
+fn default_system(name: &str) -> String {
+    format!(
+        "Kamu adalah {name} (C.L.A.U.D.I.A), teman ngobrol yang santai, hangat, dan nyambung. \
+         Balas dalam bahasa yang dipakai lawan bicara (default Indonesia santai). \
+         Jawab ringkas kecuali diminta detail."
+    )
 }
 
 impl Config {
@@ -40,13 +57,11 @@ impl Config {
             .filter_map(|p| env_nonempty(p.key_env).map(|key| (p.id, key)))
             .collect();
         let name = env_nonempty("CLAUDIA_NAME").unwrap_or_else(|| "Claudia".into());
-        let system = env_nonempty("CLAUDIA_SYSTEM").unwrap_or_else(|| {
-            format!(
-                "Kamu adalah {name} (C.L.A.U.D.I.A), teman ngobrol yang santai, hangat, dan nyambung. \
-                 Balas dalam bahasa yang dipakai lawan bicara (default Indonesia santai). \
-                 Jawab ringkas kecuali diminta detail."
-            )
-        });
+        // Prioritas: hasil edit (/system) > env CLAUDIA_SYSTEM > bawaan.
+        let saved = system_path().and_then(|p| fs::read_to_string(p).ok()).filter(|t| !t.trim().is_empty());
+        let system = saved
+            .or_else(|| env_nonempty("CLAUDIA_SYSTEM"))
+            .unwrap_or_else(|| default_system(&name));
 
         let mut cfg = Self { selected: 0, name, system, keys, models: HashMap::new() };
         let saved = cfg.load_state();
@@ -59,6 +74,28 @@ impl Config {
             cfg.set_model(model);
         }
         cfg
+    }
+
+    pub fn default_system(&self) -> String {
+        default_system(&self.name)
+    }
+
+    /// Ganti system prompt dan simpan ke disk. Gagal tulis diabaikan.
+    pub fn set_system(&mut self, text: String) {
+        self.system = text;
+        let Some(path) = system_path() else { return };
+        if let Some(dir) = path.parent() {
+            let _ = fs::create_dir_all(dir);
+        }
+        let _ = fs::write(path, &self.system);
+    }
+
+    /// Kembalikan system prompt ke bawaan dan hapus file hasil edit.
+    pub fn reset_system(&mut self) {
+        self.system = default_system(&self.name);
+        if let Some(path) = system_path() {
+            let _ = fs::remove_file(path);
+        }
     }
 
     pub fn current(&self) -> &'static Provider {

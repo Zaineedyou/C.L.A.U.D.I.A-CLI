@@ -2,6 +2,7 @@ mod api;
 mod app;
 mod chat;
 mod config;
+mod editor;
 mod event;
 mod input;
 mod picker;

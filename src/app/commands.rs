@@ -2,7 +2,7 @@ use crate::provider;
 
 use super::App;
 
-const HELP: &str = "/provider [nama] · /model [nama] · /key <kunci> · /clear · /exit";
+const HELP: &str = "/provider · /model · /key <kunci> · /system · /new · /close · /tab <n> · /clear · /exit";
 
 impl App {
     pub(super) fn run_command(&mut self, line: &str) {
@@ -24,6 +24,21 @@ impl App {
                 self.cfg.keys.insert(id, key.to_string());
                 self.info("API key diset (cuma untuk sesi ini)");
             }
+            ("/system" | "/prompt", "") => self.open_system_editor(),
+            ("/system" | "/prompt", "reset") => {
+                self.cfg.reset_system();
+                self.info("system prompt dikembalikan ke bawaan");
+            }
+            ("/system" | "/prompt", text) => {
+                self.cfg.set_system(text.to_string());
+                self.info("system prompt disimpan, berlaku mulai pesan berikutnya");
+            }
+            ("/new", _) => self.new_tab(),
+            ("/close", _) => self.close_tab(),
+            ("/tab", n) => match n.parse::<usize>() {
+                Ok(i) if i >= 1 && i <= self.tabs.len() => self.switch_tab(i - 1),
+                _ => self.err("pakai: /tab <nomor>"),
+            },
             _ => self.err(format!("perintah nggak dikenal: {cmd}")),
         }
     }
