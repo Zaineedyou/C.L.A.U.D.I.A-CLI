@@ -38,10 +38,12 @@ pub fn draw(f: &mut Frame, s: &Screen, app: &App, screen: Rect) {
     f.render_widget(Paragraph::new(Line::from(input)), text_area);
 
     let p = app.cfg.current();
+    let model = app.cfg.model();
+    let model = if model.is_empty() { "(belum pilih)".to_string() } else { model };
     let mut meta = vec![
         Span::styled(app.cfg.name.clone(), fg(AI)),
         Span::styled(" · ", fg(DIM)),
-        Span::styled(app.cfg.model(), fg(FG)),
+        Span::styled(model, fg(FG)),
         Span::styled(format!(" {}", p.name), fg(DIM)),
     ];
     if !app.cfg.is_ready(p) {

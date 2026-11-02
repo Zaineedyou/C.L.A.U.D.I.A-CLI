@@ -16,10 +16,17 @@ impl Provider {
         self.id == "custom"
     }
 
+    /// Hugging Face Space (Gradio): "model"-nya adalah id Space, bukan nama model.
+    pub fn is_space(&self) -> bool {
+        self.id == "hfspace"
+    }
+
     /// Yang harus diset user supaya provider ini siap dipakai.
     pub fn requirement(&self) -> &'static str {
         if self.is_custom() {
             "CLAUDIA_BASE_URL"
+        } else if self.is_space() {
+            "HF_TOKEN dan id Space lewat /model"
         } else {
             self.key_env
         }
@@ -80,6 +87,8 @@ pub static ALL: &[Provider] = &[
       &["venice-uncensored"]),
     p("huggingface", "Hugging Face", "https://router.huggingface.co/v1", "HF_TOKEN", "openai/gpt-oss-20b",
       &["openai/gpt-oss-20b", "openai/gpt-oss-120b", "meta-llama/Llama-3.3-70B-Instruct", "Qwen/Qwen3-235B-A22B"]),
+    // Space Gradio, bukan dialek OpenAI: id Space (owner/nama) diisi lewat /model atau env HF_SPACE.
+    p("hfspace", "HF Space", "", "HF_TOKEN", "", &[]),
     p("ollama", "Ollama (lokal)", "http://localhost:11434/v1", "", "llama3.2",
       &["llama3.2", "qwen2.5", "gemma3"]),
     p("lmstudio", "LM Studio (lokal)", "http://localhost:1234/v1", "", "local-model", &[]),

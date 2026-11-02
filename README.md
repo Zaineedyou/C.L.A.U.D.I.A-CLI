@@ -21,3 +21,8 @@ System prompt: `/system` membuka editor (Ctrl+S simpan, Ctrl+R kembali ke bawaan
 
 Env opsional: CLAUDIA_PROVIDER, CLAUDIA_MODEL, CLAUDIA_NAME, CLAUDIA_SYSTEM (dikalahkan hasil edit),
 CLAUDIA_BASE_URL + CLAUDIA_API_KEY (provider "custom"). Pilihan terakhir disimpan di ~/.config/claudia/state.
+
+Hugging Face Space: pilih provider "HF Space" lewat /connect (isi HF_TOKEN), lalu ketik id Space di /model
+(mis. `owner/nama-space`) atau set env HF_SPACE. Dipanggil lewat API Gradio (`/gradio_api/call/chat`), nilai
+parameter tambahan diambil dari skema Space. Kalau endpoint-nya bukan /chat, set HF_SPACE_API; kalau
+parameter tambahan perlu diisi sendiri, set HF_SPACE_ARGS (JSON list, mis. `["Kamu asisten ramah", 512, 0.7, 0.95]`).

@@ -13,7 +13,8 @@ pub enum Ev {
     Failed(String),
     Models {
         provider: &'static str,
-        result: Result<Vec<String>, String>,
+        /// Pasangan (id, nama tampilan); nama kosong kalau API tidak memberi.
+        result: Result<Vec<(String, String)>, String>,
     },
 }
 

@@ -168,9 +168,16 @@ impl Config {
         &provider::ALL[self.selected]
     }
 
+    fn model_of(&self, p: &Provider) -> String {
+        self.models
+            .get(p.id)
+            .cloned()
+            .or_else(|| if p.is_space() { env_nonempty("HF_SPACE") } else { None })
+            .unwrap_or_else(|| p.default_model.to_string())
+    }
+
     pub fn model(&self) -> String {
-        let p = self.current();
-        self.models.get(p.id).cloned().unwrap_or_else(|| p.default_model.to_string())
+        self.model_of(self.current())
     }
 
     pub fn set_model(&mut self, model: String) {
@@ -191,6 +198,8 @@ impl Config {
     pub fn is_ready(&self, p: &Provider) -> bool {
         if p.is_custom() {
             env_nonempty("CLAUDIA_BASE_URL").is_some()
+        } else if p.is_space() {
+            self.keys.contains_key(p.id) && !self.model_of(p).is_empty()
         } else {
             p.key_env.is_empty() || self.keys.contains_key(p.id)
         }

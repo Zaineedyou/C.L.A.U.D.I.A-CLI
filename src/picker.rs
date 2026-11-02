@@ -42,7 +42,9 @@ impl Picker {
         let q = self.filter.to_lowercase();
         self.items
             .iter()
-            .filter(|i| i.label.to_lowercase().contains(&q) || i.id.to_lowercase().contains(&q))
+            .filter(|i| {
+                i.label.to_lowercase().contains(&q) || i.id.to_lowercase().contains(&q) || i.hint.to_lowercase().contains(&q)
+            })
             .collect()
     }
 

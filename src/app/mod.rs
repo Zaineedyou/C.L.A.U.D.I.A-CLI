@@ -63,7 +63,7 @@ pub struct App {
     client: Client,
     tx: Tx,
     task: Option<JoinHandle<()>>,
-    models_cache: HashMap<&'static str, Vec<String>>,
+    models_cache: HashMap<&'static str, Vec<(String, String)>>,
 }
 
 impl App {
@@ -418,7 +418,9 @@ impl App {
     }
 
     fn open_models(&mut self) {
-        let cached = self.models_cache.contains_key(self.cfg.current().id);
+        // Space Gradio tidak punya daftar model: id Space diketik langsung di kotak filter lalu Enter.
+        let p = self.cfg.current();
+        let cached = p.is_space() || self.models_cache.contains_key(p.id);
         self.picker = Some(Picker::new(Kind::Model, self.model_items(), !cached));
         if !cached {
             api::spawn_models(self.client.clone(), self.target(), self.tx.clone());
@@ -429,20 +431,20 @@ impl App {
     fn model_items(&self) -> Vec<Item> {
         let p = self.cfg.current();
         let current = self.cfg.model();
-        let mut names: Vec<String> = match self.models_cache.get(p.id) {
+        let mut models: Vec<(String, String)> = match self.models_cache.get(p.id) {
             Some(list) => list.clone(),
-            None => p.fallback_models.iter().map(|m| m.to_string()).collect(),
+            None => p.fallback_models.iter().map(|m| (m.to_string(), String::new())).collect(),
         };
-        if !names.contains(&current) {
-            names.insert(0, current.clone());
+        if !current.is_empty() && !models.iter().any(|(id, _)| *id == current) {
+            models.insert(0, (current.clone(), String::new()));
         }
-        names
+        models
             .into_iter()
-            .map(|n| Item { current: n == current, id: n.clone(), label: n, hint: String::new() })
+            .map(|(id, name)| Item { current: id == current, id: id.clone(), label: id, hint: name })
             .collect()
     }
 
-    fn on_models(&mut self, provider: &'static str, result: Result<Vec<String>, String>) {
+    fn on_models(&mut self, provider: &'static str, result: Result<Vec<(String, String)>, String>) {
         match result {
             Ok(list) => {
                 self.models_cache.insert(provider, list);
@@ -459,6 +461,16 @@ impl App {
 
     fn confirm_pick(&mut self) {
         let Some(picker) = &self.picker else { return };
+        // Daftar model sudah ada tapi teks yang diketik nggak ketemu: jangan diam-diam dipakai jadi id model.
+        let typed = picker.filter.trim().to_string();
+        if picker.kind == Kind::Model
+            && picker.selected_item().is_none()
+            && !typed.is_empty()
+            && self.models_cache.contains_key(self.cfg.current().id)
+        {
+            self.err(format!("model '{typed}' nggak ada di daftar. Cari pakai kata lain, atau /model {typed} buat memaksa"));
+            return;
+        }
         let choice = match (picker.selected_item(), picker.kind) {
             (Some(item), _) => item.id.clone(),
             (None, Kind::Model) if !picker.filter.trim().is_empty() => picker.filter.trim().to_string(),
