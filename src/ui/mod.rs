@@ -15,7 +15,7 @@ use crate::app::{App, Notice, SLIDE_FRAMES};
 
 pub use tabs::Click;
 
-use theme::{ease, fg, lerp, shimmer, DIM, ERR, HEAD};
+use theme::{ease, fg, lerp, shimmer, DIM, ERR, FG, HEAD};
 
 const PROMPT_H: u16 = 4;
 /// Prompt + baris petunjuk.
@@ -132,6 +132,17 @@ fn status(f: &mut Frame, area: Rect, app: &App) {
             spans
         }
         (None, false, scroll) if scroll > 0 => vec![Span::styled("↓ End: balik ke bawah", fg(DIM))],
+        (None, false, _) if !app.attachments.is_empty() => {
+            let mut spans = vec![Span::styled("◈ ", fg(HEAD))];
+            for (i, attachment) in app.attachments.iter().enumerate() {
+                if i > 0 {
+                    spans.push(Span::styled("  ", fg(DIM)));
+                }
+                spans.push(Span::styled(attachment.label.clone(), fg(FG)));
+            }
+            spans.push(Span::styled("   ctrl+x lepas", fg(DIM)));
+            spans
+        }
         _ => return,
     };
     f.render_widget(Paragraph::new(Line::from(spans)), area);

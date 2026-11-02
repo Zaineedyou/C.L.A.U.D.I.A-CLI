@@ -4,10 +4,12 @@ mod chat;
 mod config;
 mod editor;
 mod event;
+mod files;
 mod input;
 mod keyentry;
 mod picker;
 mod provider;
+mod tools;
 mod ui;
 
 use std::{io, time::Duration};

@@ -9,6 +9,8 @@ pub enum Ev {
     Mouse(MouseEvent),
     Tick,
     Chunk(String),
+    /// Model memakai alat file; isinya ringkasan buat layar.
+    Tool(String),
     Done,
     Failed(String),
     Models {

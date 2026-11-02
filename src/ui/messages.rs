@@ -10,7 +10,7 @@ use crate::{
 
 use super::{
     anim, markdown,
-    theme::{fg, mix, pulse, shimmer, ACCENT_B, AI, DIM, USER},
+    theme::{fg, mix, pulse, shimmer, ACCENT_B, AI, DIM, HEAD, USER},
 };
 
 /// Seluruh percakapan sebagai baris yang sudah di-wrap untuk lebar `width`.
@@ -32,6 +32,9 @@ fn user(msg: &Message, width: usize, out: &mut Vec<Line<'static>>) {
     let mid = Span::styled("│ ", fg(USER));
     let mut rows = vec![Line::from(Span::styled("╭", fg(USER)))];
     markdown::render(&msg.content, width.saturating_sub(2), &mid, &mut rows);
+    for label in &msg.files {
+        rows.push(Line::from(vec![mid.clone(), Span::styled(format!("◈ {label}"), fg(HEAD))]));
+    }
     rows.push(Line::from(Span::styled("╰", fg(USER))));
     out.extend(rows);
 }
@@ -39,6 +42,11 @@ fn user(msg: &Message, width: usize, out: &mut Vec<Line<'static>>) {
 fn assistant(app: &App, msg: &Message, last: bool, width: usize, out: &mut Vec<Line<'static>>) {
     let indent = Span::raw("  ");
     let streaming = app.streaming && last;
+
+    // Alat file yang dipakai model, supaya user selalu tahu file apa yang dibuka.
+    for label in &msg.tools {
+        out.push(Line::from(vec![indent.clone(), Span::styled(format!("◈ {label}"), fg(HEAD))]));
+    }
 
     if streaming && msg.content.is_empty() {
         let mut spans = vec![indent];

@@ -9,6 +9,7 @@ use tokio::task::JoinHandle;
 use crate::{
     chat::{Message, Role},
     event::{Ev, Tx},
+    tools,
 };
 
 /// Semua yang dibutuhkan untuk bicara ke satu provider.
@@ -18,6 +19,8 @@ pub struct Target {
     pub base_url: String,
     pub key: Option<String>,
     pub model: String,
+    /// Tawarkan alat baca file ke model pada permintaan ini.
+    pub tools: bool,
 }
 
 /// Jalankan chat streaming di background; hasilnya datang lewat `Ev`.
@@ -60,21 +63,76 @@ async fn ensure_ok(resp: Response) -> Result<Response> {
     bail!("{status}: {}", body.chars().take(160).collect::<String>())
 }
 
+/// Batas putaran model -> alat -> model dalam satu balasan.
+const MAX_ROUNDS: usize = 8;
+
+#[derive(Default)]
+struct ToolCall {
+    id: String,
+    name: String,
+    args: String,
+}
+
 async fn stream_chat(client: &Client, t: &Target, history: &[Message], tx: &Tx) -> Result<()> {
     if t.id == "hfspace" {
         return stream_space(client, t, history, tx).await;
     }
-    let messages: Vec<Value> = history.iter().map(Message::to_json).collect();
-    let body = json!({ "model": t.model, "messages": messages, "stream": true });
+    let mut messages: Vec<Value> = history.iter().map(Message::to_json).collect();
+    let mut use_tools = t.tools;
     let url = format!("{}/chat/completions", t.base_url);
-    let resp = authed(client.post(url), t)
-        .json(&body)
-        .send()
-        .await
-        .context("gagal konek")?;
 
-    let mut stream = ensure_ok(resp).await?.bytes_stream();
+    for _ in 0..MAX_ROUNDS {
+        let mut body = json!({ "model": t.model, "messages": messages, "stream": true });
+        if use_tools {
+            body["tools"] = tools::definitions();
+        }
+        let resp = authed(client.post(&url), t).json(&body).send().await.context("gagal konek")?;
+        let status = resp.status();
+        if !status.is_success() {
+            let text = resp.text().await.unwrap_or_default();
+            let lower = text.to_lowercase();
+            let code = status.as_u16();
+            if use_tools && matches!(code, 400 | 404 | 422) && (lower.contains("tool") || lower.contains("function")) {
+                // Provider atau model ini tidak mengerti alat: lanjut sebagai chat biasa.
+                use_tools = false;
+                let _ = tx.send(Ev::Tool("model ini nggak mendukung alat file, lanjut tanpa baca file".to_string()));
+                continue;
+            }
+            bail!("{status}: {}", text.chars().take(160).collect::<String>());
+        }
+
+        let (text, calls) = read_stream(resp, tx).await?;
+        if calls.is_empty() {
+            return Ok(());
+        }
+
+        let calls_json: Vec<Value> = calls
+            .iter()
+            .map(|c| json!({ "id": c.id, "type": "function", "function": { "name": c.name, "arguments": c.args } }))
+            .collect();
+        let content = if text.is_empty() { Value::Null } else { Value::String(text) };
+        messages.push(json!({ "role": "assistant", "content": content, "tool_calls": calls_json }));
+
+        for call in calls {
+            let args: Value = serde_json::from_str(&call.args).unwrap_or(Value::Null);
+            let _ = tx.send(Ev::Tool(tools::label(&call.name, &args)));
+            let name = call.name.clone();
+            let result = tokio::task::spawn_blocking(move || tools::run(&name, &args))
+                .await
+                .unwrap_or_else(|e| format!("Error: {e}"));
+            messages.push(json!({ "role": "tool", "tool_call_id": call.id, "content": result }));
+        }
+    }
+    let _ = tx.send(Ev::Chunk("\n\n(berhenti: terlalu banyak langkah baca file)".to_string()));
+    Ok(())
+}
+
+/// Baca satu balasan streaming: teks dikirim ke layar, panggilan alat dikumpulkan buat dijalankan.
+async fn read_stream(resp: Response, tx: &Tx) -> Result<(String, Vec<ToolCall>)> {
+    let mut stream = resp.bytes_stream();
     let mut buf: Vec<u8> = Vec::new();
+    let mut text = String::new();
+    let mut calls: Vec<ToolCall> = Vec::new();
     while let Some(chunk) = stream.next().await {
         buf.extend_from_slice(&chunk?);
         while let Some(pos) = buf.iter().position(|&b| b == b'\n') {
@@ -84,17 +142,52 @@ async fn stream_chat(client: &Client, t: &Target, history: &[Message], tx: &Tx) 
                 continue;
             };
             if data == "[DONE]" {
-                return Ok(());
+                return Ok(finish_calls(text, calls));
             }
-            let text = serde_json::from_str::<Value>(data)
-                .ok()
-                .and_then(|v| v["choices"][0]["delta"]["content"].as_str().map(String::from));
-            if let Some(text) = text.filter(|t| !t.is_empty()) {
-                let _ = tx.send(Ev::Chunk(text));
+            let Ok(value) = serde_json::from_str::<Value>(data) else {
+                continue;
+            };
+            let delta = &value["choices"][0]["delta"];
+            if let Some(piece) = delta["content"].as_str().filter(|p| !p.is_empty()) {
+                text.push_str(piece);
+                let _ = tx.send(Ev::Chunk(piece.to_string()));
+            }
+            if let Some(items) = delta["tool_calls"].as_array() {
+                for item in items {
+                    let has_id = item["id"].as_str().map_or(false, |s| !s.is_empty());
+                    let index = match item["index"].as_u64() {
+                        Some(i) => i as usize,
+                        None if has_id => calls.len(),
+                        None => calls.len().saturating_sub(1),
+                    };
+                    while calls.len() <= index {
+                        calls.push(ToolCall::default());
+                    }
+                    let call = &mut calls[index];
+                    if let Some(id) = item["id"].as_str().filter(|s| !s.is_empty()) {
+                        call.id = id.to_string();
+                    }
+                    if let Some(name) = item["function"]["name"].as_str().filter(|s| !s.is_empty()) {
+                        call.name = name.to_string();
+                    }
+                    if let Some(args) = item["function"]["arguments"].as_str() {
+                        call.args.push_str(args);
+                    }
+                }
             }
         }
     }
-    Ok(())
+    Ok(finish_calls(text, calls))
+}
+
+fn finish_calls(text: String, mut calls: Vec<ToolCall>) -> (String, Vec<ToolCall>) {
+    calls.retain(|c| !c.name.is_empty());
+    for (i, call) in calls.iter_mut().enumerate() {
+        if call.id.is_empty() {
+            call.id = format!("call_{i}");
+        }
+    }
+    (text, calls)
 }
 
 const NON_CHAT: &[&str] = &["embed", "whisper", "tts", "dall-e", "moderation", "rerank", "guard", "transcri"];
@@ -147,17 +240,17 @@ fn space_base(space: &str) -> String {
 
 /// Space chat lewat API stateless, jadi riwayat dilipat jadi satu pesan kalau sudah lebih dari satu giliran.
 fn space_prompt(history: &[Message]) -> String {
-    let turns: Vec<&Message> = history.iter().filter(|m| m.role != Role::System && !m.content.trim().is_empty()).collect();
+    let turns: Vec<&Message> = history.iter().filter(|m| m.role != Role::System && !m.full().trim().is_empty()).collect();
     match turns.as_slice() {
         [] => String::new(),
-        [only] => only.content.clone(),
+        [only] => only.full(),
         _ => {
             let mut out = String::from("Riwayat percakapan sejauh ini:\n\n");
             for m in &turns[..turns.len() - 1] {
                 let who = if m.role == Role::User { "User" } else { "Asisten" };
-                out.push_str(&format!("{who}: {}\n\n", m.content.trim()));
+                out.push_str(&format!("{who}: {}\n\n", m.full().trim()));
             }
-            out.push_str(&format!("Pesan terbaru dari user (jawab yang ini):\n{}", turns[turns.len() - 1].content.trim()));
+            out.push_str(&format!("Pesan terbaru dari user (jawab yang ini):\n{}", turns[turns.len() - 1].full().trim()));
             out
         }
     }

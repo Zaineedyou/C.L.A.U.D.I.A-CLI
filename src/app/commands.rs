@@ -1,4 +1,4 @@
-use crate::provider;
+use crate::{files, provider, tools::Access};
 
 use super::App;
 
@@ -17,6 +17,10 @@ pub const COMMANDS: &[Cmd] = &[
     Cmd { name: "provider", desc: "Ganti provider", arg: false },
     Cmd { name: "model", desc: "Ganti model", arg: false },
     Cmd { name: "system", desc: "Edit system prompt", arg: false },
+    Cmd { name: "files", desc: "Jelajahi file di perangkat dan lampirkan", arg: false },
+    Cmd { name: "attach", desc: "Lampirkan file/folder: /attach <path>", arg: true },
+    Cmd { name: "akses", desc: "Akses file buat model: auto / on / off", arg: true },
+    Cmd { name: "detach", desc: "Lepas semua lampiran", arg: false },
     Cmd { name: "new", desc: "Sesi baru", arg: false },
     Cmd { name: "close", desc: "Tutup sesi ini", arg: false },
     Cmd { name: "clear", desc: "Bersihkan sesi ini", arg: false },
@@ -76,6 +80,33 @@ impl App {
             ("/system" | "/prompt", text) => {
                 self.cfg.set_system(text.to_string());
                 self.info("system prompt disimpan, berlaku mulai pesan berikutnya");
+            }
+            ("/files" | "/ls", "") | ("/attach", "") => self.open_files(None),
+            ("/files" | "/ls", path) => {
+                let dir = files::expand(path);
+                if dir.is_dir() {
+                    self.open_files(Some(dir));
+                } else {
+                    self.err(format!("{} bukan folder", dir.display()));
+                }
+            }
+            ("/attach", path) => {
+                self.attach(&files::expand(path));
+            }
+            ("/akses", "") => {
+                let label = self.access.label();
+                self.info(format!("akses file model: {label} (ubah: /akses auto|on|off)"));
+            }
+            ("/akses", mode) => match Access::parse(mode) {
+                Some(access) => {
+                    self.access = access;
+                    self.info(format!("akses file model: {}", access.label()));
+                }
+                None => self.err("pakai: /akses auto|on|off"),
+            },
+            ("/detach", _) => {
+                self.attachments.clear();
+                self.info("lampiran dilepas");
             }
             ("/new", _) => self.new_tab(),
             ("/close", _) => self.close_tab(),

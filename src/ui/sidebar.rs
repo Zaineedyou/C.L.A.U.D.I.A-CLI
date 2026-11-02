@@ -50,6 +50,9 @@ pub fn draw(f: &mut Frame, area: Rect, app: &App) {
         Line::from(Span::styled("Provider", bold(FG))),
         Line::from(vec![Span::styled("● ", dot), Span::styled(p.name, fg(FG))]),
         dim(app.cfg.model()),
+        Line::default(),
+        Line::from(Span::styled("Akses file", bold(FG))),
+        dim(app.access.label().to_string()),
     ];
     f.render_widget(Paragraph::new(lines), inner);
 

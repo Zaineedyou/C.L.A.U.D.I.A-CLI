@@ -5,6 +5,7 @@ use ratatui::{
 
 use crate::{
     app::App,
+    files,
     picker::{Item, Kind, Picker, POPUP_FRAMES},
     provider,
 };
@@ -17,7 +18,75 @@ use super::{
 pub fn draw(f: &mut Frame, app: &App) {
     editor_popup(f, app);
     key_popup(f, app);
+    browser_popup(f, app);
     picker_popup(f, app);
+}
+
+/// Browser file: folder aktif di judul, daftar isi dengan ukuran; dibuka hanya atas perintah user.
+fn browser_popup(f: &mut Frame, app: &App) {
+    let Some(browser) = &app.browser else { return };
+    let height = lerp(6, 22, ease(browser.age, POPUP_FRAMES));
+    let area = centered(f.area(), 84, height);
+
+    let path = browser.dir.display().to_string();
+    let shown = if path.chars().count() > 46 {
+        let tail: String = path.chars().rev().take(45).collect::<Vec<char>>().into_iter().rev().collect();
+        format!("…{tail}")
+    } else {
+        path
+    };
+    let mut head = vec![Span::raw(" ")];
+    head.extend(flowing("File", app.tick));
+    head.push(Span::raw(" "));
+    head.extend(anim::slashes(5, app.tick));
+    head.push(Span::styled(format!(" {shown} "), fg(DIM)));
+    let block = Block::bordered()
+        .border_type(BorderType::Rounded)
+        .border_style(fg(flow(0.3, app.tick)))
+        .style(Style::new().fg(FG))
+        .padding(Padding::horizontal(1))
+        .title(Line::from(head))
+        .title_bottom(Span::styled(" enter buka/lampirkan · tab lampirkan · ← naik · esc tutup ", fg(DIM)));
+    let inner = block.inner(area);
+    anim::frost(f, area, 0.72);
+    f.render_widget(block, area);
+    if inner.width < 12 || inner.height == 0 {
+        return;
+    }
+
+    let width = inner.width as usize;
+    let mut lines: Vec<Line> = Vec::new();
+    if let Some(error) = &browser.error {
+        lines.push(Line::from(Span::styled(error.clone(), fg(ERR))));
+    }
+    if !browser.filter.is_empty() {
+        lines.push(Line::from(Span::styled(format!("› {}", browser.filter), fg(HEAD))));
+    }
+    let rows = (inner.height as usize).saturating_sub(lines.len());
+    let items = browser.visible();
+    let top = (browser.selected + 1).saturating_sub(rows);
+    if items.is_empty() {
+        lines.push(Line::from(Span::styled("(kosong)", fg(DIM))));
+    }
+    for (i, entry) in items.iter().enumerate().skip(top).take(rows) {
+        let size = if entry.is_dir { String::new() } else { files::human_size(entry.size) };
+        let room = width.saturating_sub(size.chars().count() + 1);
+        let marker = if entry.is_dir { "▸ " } else { "  " };
+        let slash = if entry.is_dir { "/" } else { "" };
+        let mut text: String = format!("{marker}{}{slash}", entry.name).chars().take(room).collect();
+        let pad = width.saturating_sub(text.chars().count() + size.chars().count());
+        text.push_str(&" ".repeat(pad));
+        text.push_str(&size);
+        let style = if i == browser.selected {
+            Style::new().fg(WHITE).bg(AI).add_modifier(Modifier::BOLD)
+        } else if entry.is_dir {
+            fg(HEAD)
+        } else {
+            fg(FG)
+        };
+        lines.push(Line::from(Span::styled(text, style)));
+    }
+    f.render_widget(Paragraph::new(lines), inner);
 }
 
 /// Dialog isi API key: input bertopeng (•), Enter simpan, Esc balik ke daftar provider.

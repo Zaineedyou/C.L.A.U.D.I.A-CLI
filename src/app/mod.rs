@@ -14,8 +14,10 @@ use crate::{
     config::{display_cwd, Config},
     editor::Editor,
     event::{Ev, Tx},
+    files::{self, Attachment, Browser},
     input::Input,
     keyentry::KeyEntry,
+    tools::{self, Access},
     picker::{Item, Kind, Picker, POPUP_FRAMES},
     provider,
 };
@@ -45,6 +47,11 @@ pub struct App {
     pub picker: Option<Picker>,
     pub editor: Option<Editor>,
     pub keyentry: Option<KeyEntry>,
+    pub browser: Option<Browser>,
+    /// Kapan model boleh diberi alat baca file.
+    pub access: Access,
+    /// File/folder yang dipilih user buat pesan berikutnya.
+    pub attachments: Vec<Attachment>,
     /// Baris yang dipilih di dropdown perintah "/".
     pub cmd_sel: usize,
     pub tabs: Vec<Tab>,
@@ -75,6 +82,9 @@ impl App {
             picker: None,
             editor: None,
             keyentry: None,
+            browser: None,
+            access: std::env::var("CLAUDIA_FILES").ok().and_then(|v| Access::parse(&v)).unwrap_or(Access::Auto),
+            attachments: Vec::new(),
             cmd_sel: 0,
             tabs: vec![Tab::default()],
             active: 0,
@@ -99,6 +109,13 @@ impl App {
             Ev::Tick => self.on_tick(),
             Ev::Key(key) => self.on_key(key),
             Ev::Mouse(mouse) => self.on_mouse(mouse),
+            Ev::Tool(label) => {
+                if self.streaming {
+                    if let Some(msg) = self.messages.last_mut() {
+                        msg.tools.push(label);
+                    }
+                }
+            }
             Ev::Chunk(text) => {
                 // Sisa potongan dari balasan yang sudah dibatalkan atau beda tab dibuang.
                 if self.streaming {
@@ -132,6 +149,9 @@ impl App {
         if let Some(entry) = self.keyentry.as_mut() {
             entry.age = (entry.age + 1).min(POPUP_FRAMES);
         }
+        if let Some(browser) = self.browser.as_mut() {
+            browser.age = (browser.age + 1).min(POPUP_FRAMES);
+        }
     }
 
     fn info(&mut self, text: impl Into<String>) {
@@ -149,14 +169,15 @@ impl App {
             base_url: self.cfg.base_url(),
             key: self.cfg.keys.get(p.id).cloned(),
             model: self.cfg.model(),
+            tools: false,
         }
     }
 
     // ── chat ──────────────────────────────────────────────
 
     fn submit(&mut self) {
-        let text = self.input.text().trim().to_string();
-        if text.is_empty() {
+        let mut text = self.input.text().trim().to_string();
+        if text.is_empty() && self.attachments.is_empty() {
             return;
         }
         if text.starts_with('/') {
@@ -173,12 +194,42 @@ impl App {
             return;
         }
 
+        // @path di teks: file/folder yang disebut user sendiri ikut dilampirkan (tidak ada baca otomatis).
+        let mentions: Vec<std::path::PathBuf> = text
+            .split_whitespace()
+            .filter(|t| t.len() > 1 && t.starts_with('@'))
+            .map(|t| files::expand(&t[1..]))
+            .filter(|p| p.exists())
+            .collect();
+        for path in mentions {
+            if !self.attachments.iter().any(|a| a.path == path) && !self.attach(&path) {
+                return;
+            }
+        }
+        if text.is_empty() {
+            text = "Tolong baca lampiran ini.".to_string();
+        }
+
         self.input.clear();
         self.notice = None;
         self.scroll = 0;
-        self.messages.push(Message::new(Role::User, text));
+        let labels: Vec<String> = self.attachments.iter().map(|a| a.label.clone()).collect();
+        let context: String = self.attachments.iter().map(|a| a.block.as_str()).collect();
+        self.attachments.clear();
+        self.messages.push(Message::new(Role::User, text).with_files(labels, context));
 
-        let mut history = vec![Message::new(Role::System, self.cfg.system.clone())];
+        // Alat file cuma ditawarkan kalau user memintanya (atau /akses on); Space Gradio tidak punya alat.
+        let tools_on = !p.is_space()
+            && match self.access {
+                Access::Always => true,
+                Access::Never => false,
+                Access::Auto => tools::asks_for_files(&self.messages.last().map(|m| m.content.clone()).unwrap_or_default()),
+            };
+        let mut system = self.cfg.system.clone();
+        if tools_on {
+            system.push_str(tools::TOOL_PROMPT);
+        }
+        let mut history = vec![Message::new(Role::System, system)];
         let start = self.messages.len().saturating_sub(HISTORY_LIMIT);
         history.extend_from_slice(&self.messages[start..]);
 
@@ -186,7 +237,9 @@ impl App {
         self.messages.push(Message::new(Role::Assistant, "").tagged(tag));
         self.streaming = true;
         self.started = Some(Instant::now());
-        self.task = Some(api::spawn_chat(self.client.clone(), self.target(), history, self.tx.clone()));
+        let mut target = self.target();
+        target.tools = tools_on;
+        self.task = Some(api::spawn_chat(self.client.clone(), target, history, self.tx.clone()));
     }
 
     fn finish_stream(&mut self) {
@@ -310,7 +363,7 @@ impl App {
 
     /// Perintah yang cocok dengan ketikan sekarang ("/mo" → /model); kosong kalau input bukan perintah.
     pub fn command_matches(&self) -> Vec<&'static Cmd> {
-        if self.picker.is_some() || self.editor.is_some() || self.keyentry.is_some() {
+        if self.picker.is_some() || self.editor.is_some() || self.keyentry.is_some() || self.browser.is_some() {
             return Vec::new();
         }
         let text = self.input.text();
@@ -326,6 +379,36 @@ impl App {
         let text = if cmd.arg { format!("/{} ", cmd.name) } else { format!("/{}", cmd.name) };
         for c in text.chars() {
             self.input.insert(c);
+        }
+    }
+
+    // ── file (hanya atas perintah user) ───────────────────
+
+    fn open_files(&mut self, dir: Option<std::path::PathBuf>) {
+        let dir = dir.unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("/")));
+        self.browser = Some(Browser::new(dir));
+    }
+
+    /// Lampirkan file/folder yang dipilih user; `false` kalau gagal (pesan error sudah ditampilkan).
+    fn attach(&mut self, path: &std::path::Path) -> bool {
+        match files::read_attachment(path) {
+            Ok(attachment) => {
+                let total: usize = self.attachments.iter().map(|a| a.size).sum::<usize>() + attachment.size;
+                if total > files::MAX_TOTAL {
+                    self.err(format!(
+                        "lampiran kebanyakan (maks {} per pesan), lepas dulu dengan /detach",
+                        files::human_size(files::MAX_TOTAL as u64)
+                    ));
+                    return false;
+                }
+                self.info(format!("dilampirkan: {}", attachment.label));
+                self.attachments.push(attachment);
+                true
+            }
+            Err(e) => {
+                self.err(e);
+                false
+            }
         }
     }
 

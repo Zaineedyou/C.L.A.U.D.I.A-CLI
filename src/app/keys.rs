@@ -5,6 +5,7 @@ use ratatui::{
 
 use crate::{
     editor::Editor,
+    files::Action,
     ui::{tab_hits, Click},
 };
 
@@ -21,6 +22,8 @@ impl App {
             self.quit = true;
         } else if self.editor.is_some() {
             self.editor_key(key.code, ctrl);
+        } else if self.browser.is_some() {
+            self.browser_key(key.code, ctrl);
         } else if self.keyentry.is_some() {
             self.keyentry_key(key.code, ctrl);
         } else if self.picker.is_some() {
@@ -36,7 +39,7 @@ impl App {
     pub(super) fn on_mouse(&mut self, mouse: MouseEvent) {
         match mouse.kind {
             MouseEventKind::Down(MouseButton::Left) => {
-                if self.picker.is_some() || self.editor.is_some() || self.keyentry.is_some() {
+                if self.picker.is_some() || self.editor.is_some() || self.keyentry.is_some() || self.browser.is_some() {
                     return;
                 }
                 let at = Position::new(mouse.column, mouse.row);
@@ -77,6 +80,19 @@ impl App {
             _ => {
                 if let Some(editor) = self.editor.as_mut() {
                     editor.handle(code);
+                }
+            }
+        }
+    }
+
+    fn browser_key(&mut self, code: KeyCode, ctrl: bool) {
+        let Some(browser) = self.browser.as_mut() else { return };
+        match browser.handle(code, ctrl) {
+            Action::None => {}
+            Action::Close => self.browser = None,
+            Action::Attach { path, stay } => {
+                if self.attach(&path) && !stay {
+                    self.browser = None;
                 }
             }
         }
@@ -171,6 +187,13 @@ impl App {
         match code {
             KeyCode::Char('d') if ctrl && self.input.is_empty() => self.quit = true,
             KeyCode::Char('l') if ctrl => self.clear(),
+            KeyCode::Char('f') if ctrl => self.open_files(None),
+            KeyCode::Char('x') if ctrl => {
+                if !self.attachments.is_empty() {
+                    self.attachments.clear();
+                    self.info("lampiran dilepas");
+                }
+            }
             KeyCode::Char('n') if ctrl => self.new_tab(),
             KeyCode::Char('w') if ctrl => self.close_tab(),
             KeyCode::Char('u') if ctrl => self.input.clear(),

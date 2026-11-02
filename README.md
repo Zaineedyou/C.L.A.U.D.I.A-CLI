@@ -26,3 +26,17 @@ Hugging Face Space: pilih provider "HF Space" lewat /connect (isi HF_TOKEN), lal
 (mis. `owner/nama-space`) atau set env HF_SPACE. Dipanggil lewat API Gradio (`/gradio_api/call/chat`), nilai
 parameter tambahan diambil dari skema Space. Kalau endpoint-nya bukan /chat, set HF_SPACE_API; kalau
 parameter tambahan perlu diisi sendiri, set HF_SPACE_ARGS (JSON list, mis. `["Kamu asisten ramah", 512, 0.7, 0.95]`).
+
+File di perangkat: Claudia tidak membaca file sendiri. Baru ada yang dibaca kalau lu menyuruh: `/files` (atau Ctrl+F)
+membuka browser file (Enter buka folder / lampirkan file, Tab lampirkan dan tetap terbuka, ← naik, Ctrl+A lampirkan
+folder ini, Ctrl+T file tersembunyi, Ctrl+G home, Ctrl+R root, ketik buat filter), `/attach <path>` melampirkan langsung,
+dan menulis `@path` di pesan melampirkan file/folder itu. Lampiran tampil di atas prompt (Ctrl+X atau `/detach` melepas)
+dan isinya dikirim bareng pesan berikutnya. Hanya teks (maks 100 KB per file, 300 KB per pesan); file biner ditolak.
+
+Akses file untuk model: model punya alat baca (read-only) ke seluruh file di perangkat (list_dir, read_file, find_files, grep),
+tapi alat itu cuma ditawarkan pada giliran yang pesan lu jelas meminta soal file/folder (mis. "baca file ~/a.txt", "lihat isi
+folder download", atau menyebut path), dan system prompt memerintahkannya tidak menjelajah sendiri. Tiap pemakaian alat tampil
+sebagai baris `◈ baca ...` di atas balasan. `/akses auto` (bawaan), `/akses on` (selalu ditawarkan), `/akses off` (mati);
+env CLAUDIA_FILES mengatur nilai awal. Model tidak bisa menulis atau menghapus file. Hasil baca tidak disimpan di riwayat,
+jadi pertanyaan lanjutan soal file yang sama mungkin membacanya lagi. Provider harus mendukung function calling (Groq, OpenAI,
+OpenRouter, dll.); kalau tidak, otomatis lanjut tanpa baca file.
